@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Monitor Jarak & Suhu</title>
+    <title>Mesin Penyeduh Kopi</title>
     <style>
       body {
         margin: 0;
@@ -24,6 +24,8 @@
       main {
         flex: 1;
         display: flex;
+        /* Menggunakan flex-wrap agar kartu bisa turun baris di layar kecil */
+        flex-wrap: wrap;
         justify-content: center;
         align-items: center;
         padding: 2em;
@@ -38,11 +40,47 @@
         width: 100%;
         max-width: 400px;
         text-align: center;
+        margin: 1em; /* Menambahkan margin untuk memisahkan kartu jika ada banyak */
       }
 
       .value {
         font-size: 2em;
         margin: 0.5em 0;
+        font-weight: bold; /* Menambahkan bold pada nilai */
+      }
+
+      /* Gaya untuk tombol relay */
+      #relayButton {
+        padding: 12px 25px;
+        font-size: 18px;
+        cursor: pointer;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        margin-top: 1.5em; /* Memberi jarak dari elemen di atasnya */
+        width: 80%; /* Membuat tombol sedikit lebih lebar */
+        transition: background-color 0.3s ease; /* Efek transisi halus */
+      }
+
+      #relayButton.on {
+        background-color: #28a745; /* Hijau untuk ON */
+      }
+      #relayButton.off {
+        background-color: #dc3545; /* Merah untuk OFF */
+      }
+      #relayButton:hover {
+        opacity: 0.9; /* Sedikit efek hover */
+      }
+
+      #relayStatus {
+        font-weight: bold;
+        color: #34495e; /* Warna default untuk status */
+      }
+      #relayStatus.on {
+        color: green;
+      }
+      #relayStatus.off {
+        color: red;
       }
 
       @media (max-width: 600px) {
@@ -52,33 +90,60 @@
         .value {
           font-size: 1.5em;
         }
+        #relayButton {
+          font-size: 16px;
+          padding: 10px 20px;
+        }
       }
     </style>
   </head>
   <body>
     <header>
-      <h1>Monitor Jarak & Suhu Udara</h1>
+      <h1>Mesin Penyeduh Kopi</h1>
     </header>
 
     <main>
       <div class="card">
         <h2>Data Real-Time</h2>
         <div>
-          <strong>Jarak:</strong>
-          <div id="distance" class="value">-- cm</div>
+          <strong>Kapasitas 1 (Biji Kopi):</strong>
+          <div id="distance1" class="value">-- cm</div>
+        </div>
+        <div>
+          <strong>Kapasitas 2 (Air Bersih):</strong>
+          <div id="distance2" class="value">-- cm</div>
+        </div>
+        <div>
+          <strong>Kapasitas 3 (Ampas Kopi):</strong>
+          <div id="distance3" class="value">-- cm</div>
         </div>
         <div>
           <strong>Suhu:</strong>
           <div id="temperature" class="value">-- °C</div>
         </div>
+        <div>
+          <strong>UID Kartu RFID:</strong>
+          <div id="rfidUid" class="value">N/A</div>
+        </div>
+        <div>
+          <strong>Status Motor:</strong>
+          <div id="relayStatus" class="value off">OFF</div>
+        </div>
+        <button id="relayButton" class="off">Nyalakan Motor</button>
       </div>
     </main>
 
-    <footer>&copy; 2025 Sistem IoT Monitor Jarak & Suhu</footer>
+    <footer>&copy; 2025 Mesin Penyeduh Kopi</footer>
 
     <script>
-      const distanceEl = document.getElementById("distance");
+      // Dapatkan elemen untuk setiap sensor
+      const distance1El = document.getElementById("distance1");
+      const distance2El = document.getElementById("distance2");
+      const distance3El = document.getElementById("distance3");
       const temperatureEl = document.getElementById("temperature");
+      const rfidUidEl = document.getElementById("rfidUid"); // Tambahan: Dapatkan elemen UID RFID
+      const relayStatusEl = document.getElementById("relayStatus");
+      const relayButton = document.getElementById("relayButton");
 
       const ws = new WebSocket(`ws://${location.hostname}/ws`);
 
@@ -88,17 +153,80 @@
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.distance !== undefined) {
-          distanceEl.textContent = `${data.distance} cm`;
+        console.log("Data diterima:", data); // Untuk debugging, lihat data lengkap di konsol
+
+        // Perbarui masing-masing elemen kapasitas
+        if (data.distance1 !== undefined) {
+          distance1El.textContent = `${data.distance1} cm`;
+        }
+        if (data.distance2 !== undefined) {
+          distance2El.textContent = `${data.distance2} cm`;
+        }
+        if (data.distance3 !== undefined) {
+          distance3El.textContent = `${data.distance3} cm`;
         }
         if (data.temperature !== undefined) {
           temperatureEl.textContent = `${data.temperature} °C`;
         }
+        if (data.rfid_uid !== undefined) {
+          // Tambahan: Perbarui elemen UID RFID
+          rfidUidEl.textContent = data.rfid_uid;
+        }
+        if (data.relayState !== undefined) {
+          updateRelayStatus(data.relayState);
+        }
       };
 
       ws.onclose = () => {
-        console.log("WebSocket Terputus");
+        console.log(
+          "WebSocket Terputus. Mencoba menghubungkan kembali dalam 3 detik..."
+        );
+        setTimeout(() => {
+          // Reconnect logic (optional, but good practice)
+          window.location.reload(); // Simple reload for demonstration
+        }, 3000);
       };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+      };
+
+      function updateRelayStatus(state) {
+        // Karena ESP32 mengirim "true" atau "false" sebagai string sekarang, kita bandingkan dengan string
+        if (state === true || state === "true") {
+          // Handle both boolean true and string "true"
+          // Relay ON (motor menyala)
+          relayStatusEl.textContent = "ON";
+          relayStatusEl.classList.remove("off");
+          relayStatusEl.classList.add("on");
+          relayButton.classList.remove("off");
+          relayButton.classList.add("on");
+          relayButton.textContent = "Matikan Motor";
+        } else {
+          // Relay OFF (motor mati)
+          relayStatusEl.textContent = "OFF";
+          relayStatusEl.classList.remove("on");
+          relayStatusEl.classList.add("off");
+          relayButton.classList.remove("on");
+          relayButton.classList.add("off");
+          relayButton.textContent = "Nyalakan Motor";
+        }
+      }
+
+      relayButton.addEventListener("click", () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send("toggleRelay");
+        } else {
+          console.warn(
+            "WebSocket tidak terhubung. Tidak bisa mengirim perintah."
+          );
+        }
+      });
     </script>
   </body>
 </html>
+<!--
+  Catatan:
+  - Pastikan server WebSocket berjalan pada alamat yang benar.
+  - Periksa konsol browser untuk debugging jika ada masalah.
+  - Gaya CSS telah disesuaikan untuk responsif dan estetika yang lebih baik.
