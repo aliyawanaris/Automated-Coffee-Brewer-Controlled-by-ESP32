@@ -92,22 +92,6 @@
         word-wrap: break-word; /* Memastikan UID panjang tidak merusak layout */
       }
 
-      /* Gaya untuk log I2C */
-      #i2cLogDisplay {
-        text-align: left; /* Teks rata kiri untuk daftar alamat */
-        max-height: 150px; /* Batasi tinggi dan buat bisa discroll */
-        overflow-y: auto;
-        border: 1px solid #ccc;
-        padding: 10px;
-        border-radius: 8px;
-        margin-top: 1em;
-        font-size: 0.9em;
-        background-color: #f9f9f9;
-      }
-      #i2cLogDisplay p {
-        margin: 5px 0;
-      }
-
       @media (max-width: 600px) {
         .card {
           padding: 1.2em;
@@ -149,20 +133,17 @@
           <strong>Suhu:</strong>
           <div id="temperature" class="value">-- °C</div>
         </div>
+        <!-- Tambahan: Layout untuk RFID UID -->
         <div>
           <strong>UID Kartu RFID:</strong>
           <div id="rfidUidDisplay" class="value">Belum Terbaca</div>
         </div>
+        <!-------------------------------------->
         <div>
           <strong>Status Motor:</strong>
           <div id="relayStatus" class="value off">OFF</div>
         </div>
         <button id="relayButton" class="off">Nyalakan Motor</button>
-      </div>
-
-      <div class="card">
-        <h2>Log Pemindaian I2C</h2>
-        <div id="i2cLogDisplay">Memindai perangkat I2C...</div>
       </div>
     </main>
 
@@ -174,10 +155,9 @@
       const distance2El = document.getElementById("distance2");
       const distance3El = document.getElementById("distance3");
       const temperatureEl = document.getElementById("temperature");
-      const rfidUidDisplayEl = document.getElementById("rfidUidDisplay");
+      const rfidUidDisplayEl = document.getElementById("rfidUidDisplay"); // Dapatkan elemen untuk RFID UID
       const relayStatusEl = document.getElementById("relayStatus");
       const relayButton = document.getElementById("relayButton");
-      const i2cLogDisplayEl = document.getElementById("i2cLogDisplay"); // Elemen baru untuk log I2C
 
       const ws = new WebSocket(`ws://${location.hostname}/ws`);
 
@@ -186,6 +166,7 @@
       };
 
       ws.onmessage = (event) => {
+        // Parsing data yang diterima dari ESP32 (diasumsikan JSON)
         let data;
         try {
           data = JSON.parse(event.data);
@@ -197,27 +178,11 @@
             "Data:",
             event.data
           );
-          return;
+          return; // Berhenti jika data bukan JSON yang valid
         }
 
-        // --- PENANGANAN DATA I2C SCAN BARU ---
-        if (data.type === "i2cScan") {
-          i2cLogDisplayEl.innerHTML = ""; // Bersihkan konten lama
-          if (
-            data.addresses &&
-            Array.isArray(data.addresses) &&
-            data.addresses.length > 0
-          ) {
-            data.addresses.forEach((addr) => {
-              const p = document.createElement("p");
-              p.textContent = `Perangkat I2C ditemukan di: ${addr}`;
-              i2cLogDisplayEl.appendChild(p);
-            });
-          } else {
-            i2cLogDisplayEl.textContent = "Tidak ada perangkat I2C ditemukan.";
-          }
-        }
-        // --- AKHIR PENANGANAN DATA I2C SCAN ---
+        // --- PERUBAHAN DI SINI: Langsung akses properti JSON ---
+        // Karena ESP32 mengirim JSON tanpa properti 'type', kita langsung akses data.
 
         // Perbarui elemen sensor jarak
         if (data.distance1 !== undefined) {

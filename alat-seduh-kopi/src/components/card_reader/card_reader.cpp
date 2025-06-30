@@ -34,17 +34,17 @@ String card_reader_read_card_uid() {
     return uidString;
 }
 
-bool card_reader_authenticate_block(byte blockAddr, MFRC522::MIFARE_Key* key, byte* uid, MFRC522::StatusCode* status) {
-  // Fungsi otentikasi, jika Anda perlu membaca/menulis blok data
-  // Pastikan untuk menghentikan enkripsi setelah operasi selesai
-  *status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, key, uid);
-  if (*status != MFRC522::STATUS_OK) {
-      Serial.print(F("PCD_Authenticate() failed: "));
-      // Menggunakan GetStatusText untuk mendapatkan deskripsi teks dari status code
-      Serial.println(mfrc522.GetStatusText(*status));
-      return false;
-  }
-  return true;
+// **Perubahan di sini:** Parameter UID dikembalikan ke MFRC522::Uid*
+bool card_reader_authenticate_block(byte blockAddr, MFRC522::MIFARE_Key* key, MFRC522::Uid* uid, MFRC522::StatusCode* status) {
+    // Fungsi otentikasi, jika Anda perlu membaca/menulis blok data
+    // Pastikan untuk menghentikan enkripsi setelah operasi selesai
+    *status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, key, uid); // <--- Perubahan di sini
+    if (*status != MFRC522::STATUS_OK) {
+        Serial.print(F("PCD_Authenticate() failed with status code: "));
+        Serial.println(*status); // Dicetak langsung numerik
+        return false;
+    }
+    return true;
 }
 
 MFRC522::StatusCode card_reader_read_block(byte blockAddr, byte* buffer, byte* bufferSize) {

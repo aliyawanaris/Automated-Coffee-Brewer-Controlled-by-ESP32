@@ -20,8 +20,8 @@ bool card_reader_is_new_card_present();
 // Fungsi untuk membaca UID (Unique ID) kartu
 String card_reader_read_card_uid();
 
-// Fungsi untuk otentikasi blok data (jika diperlukan untuk mode R/W)
-bool card_reader_authenticate_block(byte blockAddr, byte* keyBytes, byte* uid, MFRC522::StatusCode* status);
+// **Perubahan di sini:** Parameter UID dikembalikan ke MFRC522::Uid*
+bool card_reader_authenticate_block(byte blockAddr, MFRC522::MIFARE_Key* key, MFRC522::Uid* uid, MFRC522::StatusCode* status);
 
 // Fungsi untuk membaca data dari blok (jika diperlukan untuk mode R/W)
 MFRC522::StatusCode card_reader_read_block(byte blockAddr, byte* buffer, byte* bufferSize);
