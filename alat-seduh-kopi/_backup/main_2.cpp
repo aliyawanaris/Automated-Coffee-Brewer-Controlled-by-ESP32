@@ -136,7 +136,6 @@ std::vector<String> i2cScanner() {
       Serial.print("I2C device found at address: ");
       Serial.println(addrStr);
 
-      // Tampilkan 2 alamat per baris, 2 baris total
       lcd.setCursor(nDevices % 2 == 0 ? 0 : 10, (nDevices / 2) + 1);
       lcd.print(addrStr);
       nDevices++;
@@ -145,7 +144,7 @@ std::vector<String> i2cScanner() {
           lcd.clear();
           lcd.setCursor(0,0);
           lcd.print("Scanning I2C (cont)...");
-          nDevices = 0; // Reset counter untuk baris LCD
+          nDevices = 0;
       }
     }
   }
@@ -160,7 +159,7 @@ std::vector<String> i2cScanner() {
     lcd.print("I2C Found: ");
     lcd.print(foundAddresses.size());
     lcd.setCursor(0, 1);
-    lcd.print("                    "); // Clear baris yang mungkin ada sisa alamat
+    lcd.print("                    "); // Clear baris
     delay(2000);
   }
   Serial.println("\n--- I2C Scanner Selesai ---");
@@ -308,19 +307,6 @@ void setup() {
     lcd.setCursor(0, 3);
     lcd.print("Motor: ");
     lcd.print(motorState ? "ON " : "OFF");
-
-    // --- Tambahan: Pesan LCD setelah semua setup selesai ---
-    delay(2000); // Beri sedikit waktu untuk membaca status awal
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Silahkan pilih menu");
-    lcd.setCursor(0, 1);
-    lcd.print("kopi pilihan anda!");
-    lcd.setCursor(0, 2); // Kosongkan baris 2 dan 3 untuk pesan ini
-    lcd.print("                    ");
-    lcd.setCursor(0, 3);
-    lcd.print("                    ");
-    // --- Akhir Tambahan ---
 }
 
 // --- Bagian 12: Fungsi Loop (Eksekusi Berulang) ---
@@ -343,47 +329,37 @@ void loop() {
         long distance2 = storage_detector_get_distance(SD_TRIG_PIN_2, SD_ECHO_PIN_2);
         long distance3 = storage_detector_get_distance(SD_TRIG_PIN_3, SD_ECHO_PIN_3);
 
-        // Nilai -1 dari sensor_detector_get_distance menunjukkan tidak ada deteksi valid
-        // Jika Anda ingin 0 cm berarti "penuh" dan nilai lainnya adalah jarak.
-        // Asumsi: 0 cm dari sensor_detector_get_distance berarti "tidak terdeteksi dalam rentang valid"
-        // Anda bisa menyesuaikan logika ini jika 0 cm adalah kondisi "penuh" yang valid.
-        if(distance1 == -1) distance1 = 0; // Atau nilai default lain jika tidak terdeteksi
-        if(distance2 == -1) distance2 = 0;
-        if(distance3 == -1) distance3 = 0;
-
+        if(distance1 == -1 || distance1 <= 0) distance1 = 0;
+        if(distance2 == -1 || distance2 <= 0) distance2 = 0;
+        if(distance3 == -1 || distance3 <= 0) distance3 = 0;
 
         // --- Update LCD dengan Data Sensor ---
-        // Baris 0: Pesan "Silahkan pilih menu..."
-        // Baris 1: Pesan "kopi pilihan anda!"
-        // Baris 2: Jarak D1, D2
-        // Baris 3: Jarak D3, RFID UID / Motor Status
+        // Baris 0: WiFi Status / IP
+        // Baris 1: Jarak D1, D2
+        // Baris 2: Jarak D3, (Suhu & Kelembaban Dihapus)
+        // Baris 3: RFID UID / Motor Status
 
-        // Pastikan pesan awal tetap ada jika tidak ada interaksi
-        lcd.setCursor(0, 0);
-        lcd.print("Silahkan pilih menu");
         lcd.setCursor(0, 1);
-        lcd.print("kopi pilihan anda!");
-
-        lcd.setCursor(0, 2);
         lcd.print("D1:"); lcd.print(distance1); lcd.print("cm ");
-        lcd.setCursor(10, 2); // Sesuaikan posisi untuk 20x4
+        lcd.setCursor(10, 1); // Sesuaikan posisi untuk 20x4
         lcd.print("D2:"); lcd.print(distance2); lcd.print("cm ");
 
-        lcd.setCursor(0, 3);
+        lcd.setCursor(0, 2);
         lcd.print("D3:"); lcd.print(distance3); lcd.print("cm ");
         lcd.print("              "); // 14 spasi untuk menutupi 20 - (D3:XXcm ) = 20 - 9 = 11 + buffer
 
         // --- Update LCD untuk Baris 3 (RFID vs Motor) ---
+        lcd.setCursor(0, 3);
+        lcd.print("                    "); // Clear line 3 first for 20x4
+
         // Prioritaskan tampilan RFID jika ada kartu yang terbaca
-        // Ini akan menimpa bagian kanan baris 3
         if (currentRfidUid != "Belum Terbaca") {
-            lcd.setCursor(10, 3); // Pindah ke tengah kanan baris 3
+            lcd.setCursor(0, 3);
             lcd.print("RFID: ");
-            lcd.print(currentRfidUid.substring(0, 9)); // Tampilkan sebagian UID jika terlalu panjang
-            lcd.print("   "); // Clear sisa
+            lcd.print(currentRfidUid);
         } else {
             // Jika tidak ada RFID, tampilkan status motor
-            lcd.setCursor(10, 3); // Pindah ke tengah kanan baris 3
+            lcd.setCursor(0, 3);
             lcd.print("Motor: ");
             lcd.print(motorState ? "ON " : "OFF");
         }
@@ -413,6 +389,6 @@ void loop() {
         json += "}";
 
         ws.textAll(json); // Kirim JSON ke semua klien WebSocket yang terhubung
-        // Serial.println("Data terkirim: " + json); // Aktifkan untuk debugging
+        Serial.println("Data terkirim: " + json);
     }
 }

@@ -1,35 +1,30 @@
-/*
-  src/components/rfid_card_reader/rfid_card_reader.h - Header untuk Komponen RFID Card Reader
-  Mendefinisikan antarmuka (deklarasi) untuk modul RFID RC522.
-*/
-
 #ifndef RFID_CARD_READER_H
 #define RFID_CARD_READER_H
 
-#include <Arduino.h>
+#include <Arduino.h> // Diperlukan untuk tipe data Arduino seperti String, byte
 #include <SPI.h>     // Diperlukan untuk komunikasi SPI
-#include <MFRC522.h> // Diperlukan untuk objek MFRC522
+#include <MFRC522.h> // Library untuk modul RFID/NFC Reader RC522
 
-// --- Definisi Pin RFID RC522 ---
-// Sesuai image_27db9a.png
-#define SS_PIN      5           // SDA (CS) Pin for RC522
-#define RST_PIN     0xFF        // RST Pin - 'x' di diagram, 0xFF berarti tidak terhubung/software reset
+// --- Definisi Pin Modul RFID RC522 ---
+// Sesuaikan pin-pin ini dengan koneksi fisik Anda ke ESP32.
+// Anda menyebutkan RST pin 2, jadi kita gunakan itu.
+#define SS_PIN    5   // Pin SDA (Chip Select) dari RC522 terhubung ke GPIO 5 ESP32
+#define RST_PIN   2   // Pin RST (Reset) dari RC522 terhubung ke GPIO 2 ESP32
 
-// --- Deklarasi Objek MFRC522 ---
-// Gunakan 'extern' karena objek akan didefinisikan di rfid_card_reader.cpp
-extern MFRC522 mfrc522;
+// --- Deklarasi Eksternal (Global) ---
+// Deklarasikan objek MFRC522 sebagai 'extern' agar bisa diakses dari file lain (main.cpp).
+// Objek ini akan didefinisikan di rfid_card_reader.cpp.
+extern MFRC522 rfid;
 
-// --- Deklarasi Variabel Global untuk RFID ---
-extern String currentRfidUid; // Menyimpan UID yang terbaca
-extern unsigned long lastCardReadTime;
-extern const long RFID_UID_CLEAR_DELAY_MS; // UID akan dihapus setelah delay jika kartu dilepas
+// Deklarasikan variabel String untuk menyimpan UID kartu yang terbaca.
+// Ini juga 'extern' agar bisa diakses dan ditampilkan di main.cpp (misalnya di LCD atau Web).
+extern String currentRfidUid;
 
 // --- Prototipe Fungsi ---
-// Fungsi untuk menginisialisasi modul RFID.
+// Fungsi inisialisasi untuk modul RFID.
 void setupRfidCardReader();
 
-// Fungsi untuk menangani logika pembacaan kartu RFID di loop utama.
-// Membutuhkan waktu milidetik saat ini untuk manajemen delay.
+// Fungsi untuk menangani logika pembacaan kartu RFID di setiap loop.
 void handleRfidCardReader(unsigned long currentMillis);
 
 #endif // RFID_CARD_READER_H

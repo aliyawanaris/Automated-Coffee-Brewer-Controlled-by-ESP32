@@ -32,8 +32,24 @@ extern int lastButtonState[4];
 extern int currentButtonState[4]; // Ini akan menyimpan status stabil tombol (LOW/HIGH)
 
 // --- Prototipe Fungsi ---
+/**
+ * @brief Menginisialisasi pin-pin Front Panel (PCF8574).
+ * @param pcf2_address Alamat I2C PCF8574 yang digunakan untuk front panel.
+ */
 void setupFrontPanel(uint8_t pcf2_address);
+
+/**
+ * @brief Menangani pembacaan status tombol dan kontrol LED.
+ * Fungsi ini harus dipanggil berulang kali di loop() Arduino.
+ */
 void handleFrontPanel();
+
+/**
+ * @brief Membaca status push button dengan debounce.
+ * @param buttonPin Pin PCF8574 yang terhubung ke tombol.
+ * @param buttonIndex Indeks tombol (0-3) untuk array status.
+ * @return true jika tombol baru saja ditekan (transisi LOW ke HIGH), false jika tidak.
+ */
 bool readPushButton(int buttonPin, int buttonIndex);
 
 #endif // FRONT_PANEL_H

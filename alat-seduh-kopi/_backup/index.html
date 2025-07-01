@@ -140,7 +140,8 @@
           font-size: 16px;
           padding: 10px 20px;
         }
-        #rfidUidDisplay, .button-status {
+        #rfidUidDisplay,
+        .button-status {
           font-size: 1.2em;
         }
         .button-status .state-indicator {
@@ -170,34 +171,25 @@
           <strong>Kapasitas 3 (Ampas Kopi):</strong>
           <div id="distance3" class="value">-- cm</div>
         </div>
-        <div>
-          <strong>Suhu:</strong>
-          <div id="temperature" class="value">-- °C</div>
-        </div>
-        <!------------------- Status RFID ------------------->
-        <hr style="margin: 1.5em 0; border-color: #eee;">
+        <hr style="margin: 1.5em 0; border-color: #eee" />
         <div>
           <strong>UID Kartu RFID:</strong>
           <div id="rfidUidDisplay" class="value">Belum Terbaca</div>
         </div>
-        <!----------------------------------------------------------->
-
-        <!------------------- Status Tombol ------------------->
-        <hr style="margin: 1.5em 0; border-color: #eee;">
+        <hr style="margin: 1.5em 0; border-color: #eee" />
         <h3>Status Push Button</h3>
         <div id="pb1Status" class="button-status low">
-          Push Button 1: <span class="state-indicator"></span> <span>LOW</span>
+          Torabika: <span class="state-indicator"></span> <span>LOW</span>
         </div>
         <div id="pb2Status" class="button-status low">
-          Push Button 2: <span class="state-indicator"></span> <span>LOW</span>
+          Good Day: <span class="state-indicator"></span> <span>LOW</span>
         </div>
         <div id="pb3Status" class="button-status low">
-          Push Button 3: <span class="state-indicator"></span> <span>LOW</span>
+          ABC Susu: <span class="state-indicator"></span> <span>LOW</span>
         </div>
         <div id="pb4Status" class="button-status low">
-          Push Button 4: <span class="state-indicator"></span> <span>LOW</span>
+          Konfirmasi: <span class="state-indicator"></span> <span>LOW</span>
         </div>
-        <!----------------------------------------------------------->
         <div>
           <strong>Status Motor:</strong>
           <div id="relayStatus" class="value off">OFF</div>
@@ -205,7 +197,6 @@
         <button id="relayButton" class="off">Nyalakan Motor</button>
       </div>
 
-      <!-- KARTU UNTUK LOG I2C -->
       <div class="card">
         <h2>Log Pemindaian I2C</h2>
         <div id="i2cLogDisplay">Memindai perangkat I2C...</div>
@@ -219,7 +210,8 @@
       const distance1El = document.getElementById("distance1");
       const distance2El = document.getElementById("distance2");
       const distance3El = document.getElementById("distance3");
-      const temperatureEl = document.getElementById("temperature");
+      // Hapus ini: const temperatureEl = document.getElementById("temperature");
+      // Hapus ini: const humidityEl = document.getElementById("humidity");
       const rfidUidDisplayEl = document.getElementById("rfidUidDisplay");
       const relayStatusEl = document.getElementById("relayStatus");
       const relayButton = document.getElementById("relayButton");
@@ -230,7 +222,6 @@
       const pb2StatusEl = document.getElementById("pb2Status");
       const pb3StatusEl = document.getElementById("pb3Status");
       const pb4StatusEl = document.getElementById("pb4Status");
-
 
       const ws = new WebSocket(`ws://${location.hostname}/ws`);
 
@@ -256,7 +247,11 @@
         // --- PENANGANAN DATA I2C SCAN ---
         if (data.type === "i2cScan") {
           i2cLogDisplayEl.innerHTML = ""; // Bersihkan konten lama
-          if (data.addresses && Array.isArray(data.addresses) && data.addresses.length > 0) {
+          if (
+            data.addresses &&
+            Array.isArray(data.addresses) &&
+            data.addresses.length > 0
+          ) {
             data.addresses.forEach((addr) => {
               const p = document.createElement("p");
               p.textContent = `Perangkat I2C ditemukan di: ${addr}`;
@@ -268,7 +263,6 @@
         }
         // --- AKHIR PENANGANAN DATA I2C SCAN ---
 
-
         // Perbarui elemen sensor jarak
         if (data.distance1 !== undefined) {
           distance1El.textContent = `${data.distance1} cm`;
@@ -279,7 +273,17 @@
         if (data.distance3 !== undefined) {
           distance3El.textContent = `${data.distance3} cm`;
         }
-        // temperatureEl belum diupdate karena data suhu belum dikirim
+
+        // Perbarui suhu dan kelembaban (Dihapus)
+        // Hapus blok ini:
+        /*
+        if (data.temperature !== undefined) {
+          temperatureEl.textContent = `${data.temperature.toFixed(1)} °C`;
+        }
+        if (data.humidity !== undefined) {
+          humidityEl.textContent = `${data.humidity.toFixed(1)} %`;
+        }
+        */
 
         // Perbarui status relay
         if (data.relayState !== undefined) {
@@ -288,30 +292,30 @@
 
         // --- Perbarui status Push Button ---
         function updateButtonStatus(element, state) {
-            const stateText = state.toUpperCase();
-            element.classList.remove('high', 'low');
-            element.classList.add(state.toLowerCase());
-            // Update the text content of the span (last child)
-            element.querySelector('span:last-child').textContent = stateText;
+          const stateText = state.toUpperCase();
+          element.classList.remove("high", "low");
+          element.classList.add(state.toLowerCase());
+          // Update the text content of the span (last child)
+          element.querySelector("span:last-child").textContent = stateText;
         }
 
         if (data.pb1State !== undefined) {
-            updateButtonStatus(pb1StatusEl, data.pb1State);
+          updateButtonStatus(pb1StatusEl, data.pb1State);
         }
         if (data.pb2State !== undefined) {
-            updateButtonStatus(pb2StatusEl, data.pb2State);
+          updateButtonStatus(pb2StatusEl, data.pb2State);
         }
         if (data.pb3State !== undefined) {
-            updateButtonStatus(pb3StatusEl, data.pb3State);
+          updateButtonStatus(pb3StatusEl, data.pb3State);
         }
         if (data.pb4State !== undefined) {
-            updateButtonStatus(pb4StatusEl, data.pb4State);
+          updateButtonStatus(pb4StatusEl, data.pb4State);
         }
         // --- Akhir Perbarui status Push Button ---
 
         // --- Perbarui status RFID UID ---
         if (data.rfidUid !== undefined) {
-            rfidUidDisplayEl.textContent = data.rfidUid;
+          rfidUidDisplayEl.textContent = data.rfidUid;
         }
         // --- Akhir Perbarui status RFID UID ---
       };
