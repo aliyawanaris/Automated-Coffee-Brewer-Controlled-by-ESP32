@@ -14,5 +14,8 @@ extern LiquidCrystal_I2C lcd;
 
 // Deklarasi fungsi inisialisasi LCD
 void setupLCD();
+void showWelcomeScene(); // Fungsi untuk menampilkan scene selamat datang
+void showConfirmationScene(int menuIndex);
+void showProcessingScene(); // Fungsi untuk menampilkan scene proses seduh
 
 #endif // LCD_DISPLAY_H
