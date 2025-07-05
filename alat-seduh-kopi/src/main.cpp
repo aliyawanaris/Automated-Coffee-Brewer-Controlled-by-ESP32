@@ -52,6 +52,7 @@ didefinisikan di 'components/storage_detector/storage_detector.h'.
 #include "components/order_coffee/order_coffee.h"
 #include "components/rfid_card_reader/rfid_card_reader.h"
 #include "components/temperature_humidity/temperature_humidity.h"
+#include "components/motor_control/motor_control.h"
 
 // --- Bagian 2: Konfigurasi Wi-Fi ---
 const char* ssid = "Pikan Miku";
@@ -70,8 +71,8 @@ unsigned long lastSensorReadMillis = 0;
 const long sensorReadInterval = 2000; // Interval 2 detik
 
 // --- Bagian 7: Definisi Alamat PCF8574 ---
-#define PCF8574_ADDRESS_1 0x20 // Alamat I2C PCF8574 pertama (jika digunakan)
-#define PCF8574_ADDRESS_2 0x21 // Alamat I2C PCF8574 kedua (untuk Front Panel/Order Coffee)
+#define PCF8574_MOTOR_CONTROL_ADDRESS 0x20// Alamat I2C PCF8574 pertama (jika digunakan)
+#define PCF8574_FRONT_PANEL_ADDRESS 0x21 // Alamat I2C PCF8574 kedua (untuk Front Panel/Order Coffee)
 Adafruit_PCF8574 pcf1; // Deklarasi objek PCF8574 (jika digunakan)
 
 // --- Bagian 8: GLOBAL VARIABLE UNTUK MENYIMPAN HASIL I2C SCAN ---
@@ -207,21 +208,38 @@ void setup() {
         lcd.setCursor(0,0);
         lcd.print("Setup Devices...");
 
-    // --- Inisialisasi PCF8574 pertama ---
+    // --- Inisialisasi PCF8574 0x20 ---
         Serial.println(">> Inisialisasi PCF8574 (0x20)..."); // Tambahkan log untuk inisialisasi
         // (PENTING: Hanya panggil sekali di setup() utama (jika digunakan)
-        if (!pcf1.begin(PCF8574_ADDRESS_1, &Wire)) {
-        Serial.println("PCF8574 (0x20) tidak ditemukan atau gagal inisialisasi.");
+        if (!pcf1.begin(PCF8574_MOTOR_CONTROL_ADDRESS, &Wire)) {
+        Serial.println(">> PCF8574 (0x20) tidak ditemukan atau gagal inisialisasi.");
         lcd.setCursor(0, 3);
         lcd.print("PCF1 init FAILED!");
         } else {
         Serial.println(">> PCF8574 (0x20) OK!");
         }
 
-    // --- Inisialisasi Komponen Lain ---
-        // Inisialisasi Order Coffee (dulunya Front Panel)
-        setupOrderCoffee(PCF8574_ADDRESS_2); // <<< UBAH PANGGILAN FUNGSI INI
-        Serial.println(">> Order Coffee (PCF8574 0x21) OK!"); // <<< UBAH LOG PESAN INI
+    // --- Inisialisasi Pin PCF8574 0x21 ---
+        Serial.println(">> Inisialisasi PCF8574 (0x21)..."); // Tambahkan log untuk inisialisasi
+        if (!pcf2.begin(PCF8574_MOTOR_CONTROL_ADDRESS, &Wire)) {
+            Serial.println(">> PCF8574 (0x21) tidak ditemukan atau gagal inisialisasi.");
+            lcd.setCursor(1, 3);
+            lcd.print("PCF2 init FAILED!");
+        } else {
+            Serial.println(">> PCF8574 (0x21) OK!");
+        }
+
+    // --- Inisialisasi PCF8574 0x20 Motor Control ---
+        setupMotorControl(PCF8574_MOTOR_CONTROL_ADDRESS); // Inisialisasi kontrol motor
+        lcd.setCursor(0, 2);
+        lcd.print("Motor Control OK!");
+        Serial.println(">> Motor Control (PCF8574 0x20) OK!");
+
+    // --- Inisialisasi PCF8574 0x21 Order Coffee Button & LED ---
+        setupOrderCoffee(PCF8574_FRONT_PANEL_ADDRESS); // Inisialisasi kontrol order kopi
+        lcd.setCursor(0, 3);
+        lcd.print("Order Coffee OK!");
+        Serial.println(">> Order Coffee (PCF8574 0x21) OK!");
 
     // --- Inisialisasi Bus SPI ---
         Serial.println(">> Inisialisasi SPI Bus...");
@@ -240,19 +258,18 @@ void setup() {
     // --- Inisialisasi semua sensor jarak ---
         storage_detector_init_all_sensors();
 
-    // --- Konfigurasi pin motor ---
-        pinMode(motorPin, OUTPUT);
-        digitalWrite(motorPin, HIGH); // Motor OFF secara default
-
     // --- Inisialisasi SPIFFS untuk melayani file web ---
         if(!SPIFFS.begin(true)){
-            Serial.println("Gagal mount SPIFFS");
+            Serial.println(">> Gagal mount SPIFFS");
             lcd.setCursor(0, 0);
             lcd.print("ERROR: SPIFFS Fail!");
             while(true);
         }
 
-        Serial.println("Menghubungkan ke WiFi...");
+    // --- Inisialisasi WiFi ---
+        Serial.println("====================================================");
+        Serial.println(">> Inisialisasi WiFi...");
+        Serial.println(">> Menghubungkan ke WiFi...");
         lcd.setCursor(0, 0);
         lcd.print("Connecting to WiFi...");
         lcd.setCursor(0, 1);
