@@ -1,106 +1,142 @@
 #include "motor_control.h"
 #include <Wire.h> // Diperlukan untuk komunikasi I2C
-#include "components/lcd_display/lcd_display.h" // Diperlukan untuk akses ke objek lcd
 
-// Definisi objek PCF8574 untuk motor
-Adafruit_PCF8574 pcfMotor;
+// Definisi Objek PCF8574
+Adafruit_PCF8574 pcf;
 
-// Variabel internal untuk menyimpan alamat PCF8574 motor
-static uint8_t currentMotorPcfAddress;
+/**
+ * @brief Menginisialisasi pin-pin kontrol motor pada PCF8574.
+ * @param pcf_address Alamat I2C PCF8574 yang digunakan untuk motor control.
+ */
+void setupMotorControl(uint8_t pcf_address) {
+  Serial.print("Menginisialisasi PCF8574 (0x");
+  if (pcf_address < 16) Serial.print("0");
+  Serial.print(pcf_address, HEX);
+  Serial.println(" - Motor Control)... ");
 
-void setupMotorControl(uint8_t motorPcfAddress_param) {
-    currentMotorPcfAddress = motorPcfAddress_param; // Simpan alamat yang diterima
+  if (!pcf.begin(pcf_address, &Wire)) {
+    Serial.println("PCF8574 (0x20) Inisialisasi GAGAL!");
+    Serial.print("FATAL ERROR: PCF8574 (0x");
+    if (pcf_address < 16) Serial.print("0");
+    Serial.print(pcf_address, HEX);
+    Serial.println(") TIDAK DITEMUKAN. Cek alamat & koneksi!");
+    while (true); // Hentikan program jika PCF8574 tidak ditemukan (fatal)
+  }
+  Serial.println("PCF8574 (Motor Control) OK!");
 
-    // --- Inisialisasi PCF8574 0x20 ---
-    Serial.print(">> Inisialisasi PCF8574 (0x");
-    if (currentMotorPcfAddress < 16) Serial.print("0");
-    Serial.print(currentMotorPcfAddress, HEX);
-    Serial.println(" - Motor Control)... ");
+  // --- Pin Setup untuk Motor Dinamo 1 | Storage 1 ---
+  pcf.pinMode(MOTOR_STORAGE_1_IN1_PIN, OUTPUT);
+  pcf.pinMode(MOTOR_STORAGE_1_IN2_PIN, OUTPUT);
+  pcf.digitalWrite(MOTOR_STORAGE_1_IN1_PIN, LOW); // Pastikan motor OFF di awal
+  pcf.digitalWrite(MOTOR_STORAGE_1_IN2_PIN, LOW);
 
-    if (!pcfMotor.begin(currentMotorPcfAddress, &Wire)) {
-        Serial.println(">> PCF8574 (0x20) tidak ditemukan atau gagal inisialisasi.");
-        lcd.setCursor(0, 3);
-        lcd.print("PCF1 init FAILED!"); // Sesuai format Anda
-        while(true); // Hentikan program jika fatal error
-    } else {
-        Serial.println(">> PCF8574 (0x20) OK!");
-    }
+  // --- Pin Setup untuk Motor Dinamo 2 | Storage 2 ---
+  pcf.pinMode(MOTOR_STORAGE_2_IN1_PIN, OUTPUT);
+  pcf.pinMode(MOTOR_STORAGE_2_IN2_PIN, OUTPUT);
+  pcf.digitalWrite(MOTOR_STORAGE_2_IN1_PIN, LOW); // Pastikan motor OFF di awal
+  pcf.digitalWrite(MOTOR_STORAGE_2_IN2_PIN, LOW);
 
-    // Set semua pin sebagai OUTPUT untuk mengontrol L298N
-    pcfMotor.pinMode(M1_IN1_PIN, OUTPUT);
-    pcfMotor.pinMode(M1_IN2_PIN, OUTPUT);
-    pcfMotor.pinMode(M2_IN3_PIN, OUTPUT);
-    pcfMotor.pinMode(M2_IN4_PIN, OUTPUT);
-    pcfMotor.pinMode(M3_IN1_PIN, OUTPUT);
-    pcfMotor.pinMode(M3_IN2_PIN, OUTPUT);
-    pcfMotor.pinMode(M4_IN3_PIN, OUTPUT);
-    pcfMotor.pinMode(M4_IN4_PIN, OUTPUT);
+  // --- Pin Setup untuk Motor Dinamo 3 | Storage 3 ---
+  pcf.pinMode(MOTOR_STORAGE_3_IN1_PIN, OUTPUT);
+  pcf.pinMode(MOTOR_STORAGE_3_IN2_PIN, OUTPUT);
+  pcf.digitalWrite(MOTOR_STORAGE_3_IN1_PIN, LOW); // Pastikan motor OFF di awal
+  pcf.digitalWrite(MOTOR_STORAGE_3_IN2_PIN, LOW);
 
-    // Pastikan semua motor berhenti di awal
-    stopAllMotors();
-    Serial.println("Motor Control pins configured. All motors stopped.");
+  // --- Pin Setup untuk Motor Dinamo 4 | Mixer---
+  pcf.pinMode(MOTOR_MIXER_IN1_PIN, OUTPUT);
+  pcf.pinMode(MOTOR_MIXER_IN2_PIN, OUTPUT);
+  pcf.digitalWrite(MOTOR_MIXER_IN1_PIN, LOW); // Pastikan motor OFF di awal
+  pcf.digitalWrite(MOTOR_MIXER_IN2_PIN, LOW);
+
+  // --- BARU: Pin Setup untuk Motor Pump 2 (GPIO25) ---
+  pinMode(MOTOR_PUMP_GALON_RELAY_PIN, OUTPUT);
+  digitalWrite(MOTOR_PUMP_GALON_RELAY_PIN, HIGH);
+  pinMode(MOTOR_PUMP_HOT_WATER_RELAY_PIN, OUTPUT);
+  digitalWrite(MOTOR_PUMP_HOT_WATER_RELAY_PIN, HIGH);
+  pinMode(MOTOR_PUMP_SEDUH_KOPI_RELAY_PIN, OUTPUT);
+  digitalWrite(MOTOR_PUMP_SEDUH_KOPI_RELAY_PIN, HIGH);
+
+  Serial.println("Motor Control pins configured (including Motor Pump 2 on GPIO25).");
 }
 
-void stopAllMotors() {
-    pcfMotor.digitalWrite(M1_IN1_PIN, LOW);
-    pcfMotor.digitalWrite(M1_IN2_PIN, LOW);
-    pcfMotor.digitalWrite(M2_IN3_PIN, LOW);
-    pcfMotor.digitalWrite(M2_IN4_PIN, LOW);
-    pcfMotor.digitalWrite(M3_IN1_PIN, LOW);
-    pcfMotor.digitalWrite(M3_IN2_PIN, LOW);
-    pcfMotor.digitalWrite(M4_IN3_PIN, LOW);
-    pcfMotor.digitalWrite(M4_IN4_PIN, LOW);
+// --- Implementasi Fungsi Kontrol Motor Dinamo 1 ---
+void motor_storage_1_start() {
+  Serial.println("Motor 1 START");
+  pcf.digitalWrite(MOTOR_STORAGE_1_IN1_PIN, HIGH);
+  pcf.digitalWrite(MOTOR_STORAGE_1_IN2_PIN, LOW);
 }
 
-// --- Implementasi Fungsi Kontrol untuk Motor Dinamo 1 ---
-void motor1_start() {
-    // Asumsi arah maju. Sesuaikan HIGH/LOW jika perlu membalik arah.
-    pcfMotor.digitalWrite(M1_IN1_PIN, HIGH);
-    pcfMotor.digitalWrite(M1_IN2_PIN, LOW);
-    Serial.println("Motor Dinamo 1: ON");
+void motor_storage_1_stop() {
+  Serial.println("Motor 1 STOP");
+  pcf.digitalWrite(MOTOR_STORAGE_1_IN1_PIN, LOW);
+  pcf.digitalWrite(MOTOR_STORAGE_1_IN2_PIN, LOW);
 }
 
-void motor1_stop() {
-    pcfMotor.digitalWrite(M1_IN1_PIN, LOW);
-    pcfMotor.digitalWrite(M1_IN2_PIN, LOW);
-    Serial.println("Motor Dinamo 1: OFF");
+void motor_storage_2_start() {
+  Serial.println("Motor 2 START");
+  pcf.digitalWrite(MOTOR_STORAGE_2_IN1_PIN, HIGH);
+  pcf.digitalWrite(MOTOR_STORAGE_2_IN2_PIN, LOW);
 }
 
-// --- Implementasi Fungsi Kontrol untuk Motor Dinamo 2 ---
-void motor2_start() {
-    pcfMotor.digitalWrite(M2_IN3_PIN, HIGH);
-    pcfMotor.digitalWrite(M2_IN4_PIN, LOW);
-    Serial.println("Motor Dinamo 2: ON");
+void motor_storage_2_stop() {
+  Serial.println("Motor 2 STOP");
+  pcf.digitalWrite(MOTOR_STORAGE_2_IN1_PIN, LOW);
+  pcf.digitalWrite(MOTOR_STORAGE_2_IN2_PIN, LOW);
 }
 
-void motor2_stop() {
-    pcfMotor.digitalWrite(M2_IN3_PIN, LOW);
-    pcfMotor.digitalWrite(M2_IN4_PIN, LOW);
-    Serial.println("Motor Dinamo 2: OFF");
+void motor_storage_3_start() {
+  Serial.println("Motor 3 START");
+  pcf.digitalWrite(MOTOR_STORAGE_3_IN1_PIN, HIGH);
+  pcf.digitalWrite(MOTOR_STORAGE_3_IN2_PIN, LOW);
 }
 
-// --- Implementasi Fungsi Kontrol untuk Motor Dinamo 3 ---
-void motor3_start() {
-    pcfMotor.digitalWrite(M3_IN1_PIN, HIGH);
-    pcfMotor.digitalWrite(M3_IN2_PIN, LOW);
-    Serial.println("Motor Dinamo 3: ON");
+void motor_storage_3_stop() {
+  Serial.println("Motor 3 STOP");
+  pcf.digitalWrite(MOTOR_STORAGE_3_IN1_PIN, LOW);
+  pcf.digitalWrite(MOTOR_STORAGE_3_IN2_PIN, LOW);
 }
 
-void motor3_stop() {
-    pcfMotor.digitalWrite(M3_IN1_PIN, LOW);
-    pcfMotor.digitalWrite(M3_IN2_PIN, LOW);
-    Serial.println("Motor Dinamo 3: OFF");
+// --- Implementasi Fungsi Kontrol Motor Dinamo 4 ---
+void motor_mixer_start() {
+  Serial.println("Motor 4 START");
+  pcf.digitalWrite(MOTOR_MIXER_IN1_PIN, HIGH);
+  pcf.digitalWrite(MOTOR_MIXER_IN2_PIN, LOW);
 }
 
-// --- Implementasi Fungsi Kontrol untuk Motor Dinamo 4 ---
-void motor4_start() {
-    pcfMotor.digitalWrite(M4_IN3_PIN, HIGH);
-    pcfMotor.digitalWrite(M4_IN4_PIN, LOW);
-    Serial.println("Motor Dinamo 4: ON");
+void motor_mixer_stop() {
+  Serial.println("Motor 4 STOP");
+  pcf.digitalWrite(MOTOR_MIXER_IN1_PIN, LOW);
+  pcf.digitalWrite(MOTOR_MIXER_IN2_PIN, LOW);
 }
 
-void motor4_stop() {
-    pcfMotor.digitalWrite(M4_IN3_PIN, LOW);
-    pcfMotor.digitalWrite(M4_IN4_PIN, LOW);
-    Serial.println("Motor Dinamo 4: OFF");
+// Fungsi untuk Motor Pump 1 tidak ada di sini karena dikelola di order_coffee.cpp
+
+void motor_pump_galon_start() {
+  Serial.println("Motor Pump Galon ON (GPIO25)");
+  digitalWrite(MOTOR_PUMP_GALON_RELAY_PIN, LOW); // Asumsi LOW = ON untuk relay
+}
+
+void motor_pump_galon_stop() {
+  Serial.println("Motor Pump Galon OFF (GPIO25)");
+  digitalWrite(MOTOR_PUMP_GALON_RELAY_PIN, HIGH); // Asumsi HIGH = OFF untuk relay
+}
+
+void motor_pump_hot_water_start() {
+  Serial.println("Motor Pump Hot Water ON (GPIO25)");
+  digitalWrite(MOTOR_PUMP_HOT_WATER_RELAY_PIN, LOW); // Asumsi LOW = ON untuk relay
+}
+
+void motor_pump_hot_water_stop() {
+  Serial.println("Motor Pump Hot Water OFF (GPIO25)");
+  digitalWrite(MOTOR_PUMP_HOT_WATER_RELAY_PIN, HIGH); // Asumsi HIGH = OFF untuk relay
+}
+
+void motor_pump_seduh_kopi_start() {
+  Serial.println("Motor Pump Seduh Kopi ON (GPIO33)");
+  digitalWrite(MOTOR_PUMP_SEDUH_KOPI_RELAY_PIN, LOW); // Asumsi LOW = ON untuk relay
+}
+
+void motor_pump_seduh_kopi_stop() {
+  Serial.println("Motor Pump Seduh Kopi OFF (GPIO33)");
+  digitalWrite(MOTOR_PUMP_SEDUH_KOPI_RELAY_PIN, HIGH); // Asumsi HIGH = OFF untuk relay
 }

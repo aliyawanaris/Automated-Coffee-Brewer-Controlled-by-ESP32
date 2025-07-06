@@ -1,5 +1,4 @@
 #include "rfid_card_reader.h"
-#include <SPI.h> // Diperlukan untuk komunikasi SPI (biasanya sudah di-include di main.ino, tapi pastikan ada)
 
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Buat objek MFRC522
 

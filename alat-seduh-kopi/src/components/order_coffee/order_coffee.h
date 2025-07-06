@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <Adafruit_PCF8574.h>
 #include <LiquidCrystal_I2C.h> // Untuk akses ke objek lcd
+// #include "components/motor_control/motor_control.h" // Untuk kontrol dinamo
 
 // --- Definisi Pin PCF8574 untuk Front Panel (0x21) ---
 // PIN ANDA DARI SCRIPT YANG DIBERIKAN
@@ -12,8 +13,12 @@ const int FP_PB2_PIN = 1; // P1 = Push button 2
 const int FP_PB3_PIN = 2; // P2 = Push button 3
 const int FP_PB4_PIN = 3; // P3 = Push button 4
 
+// --- Definisi Pin LED untuk Front Panel (0x21) ---
 const int FP_LED1_PIN = 4; // P4 = LED 1
 const int FP_LED2_PIN = 5; // P5 = LED 2
+
+// --- Definisi Pin Relay untuk Motor Pump (0x21) ---
+#define FP_RELAY_PUMP_PIN 7 // P7 = Relay untuk Motor Pump
 
 // --- Definisi Pin Dinamo (baru) ---
 #define DYNAMO_PIN FP_PB1_PIN // Dinamo terhubung ke pin 0 PCF8574 (P0), yang adalah FP_PB1_PIN
@@ -59,7 +64,7 @@ bool readPushButton(int buttonPin, int buttonIndex);
 void startBlinkingLEDs();
 void stopBlinkingLEDs();
 void updateBlinkingLEDs(unsigned long currentMillis);
-void activateDynamo();  // Prototipe fungsi baru untuk mengaktifkan dinamo
-void deactivateDynamo(); // Prototipe fungsi baru untuk menonaktifkan dinamo
+
+void setPumpMotorState(bool state); // Fungsi baru untuk mengontrol pompa
 
 #endif // ORDER_COFFEE_H

@@ -59,7 +59,5 @@ bool readPushButton(int buttonPin, int buttonIndex);
 void startBlinkingLEDs();
 void stopBlinkingLEDs();
 void updateBlinkingLEDs(unsigned long currentMillis);
-void activateDynamo();  // Prototipe fungsi baru untuk mengaktifkan dinamo
-void deactivateDynamo(); // Prototipe fungsi baru untuk menonaktifkan dinamo
 
 #endif // ORDER_COFFEE_H

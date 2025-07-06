@@ -173,7 +173,16 @@ void setup() {
     // --- Inisialisasi I2C Bus dan LCD ---
         Wire.begin(21, 22); // SDA di GPIO 21, SCL di GPIO 22
         Serial.println(">> Inisialisasi I2C Bus...");
-        setupLCD(); // Panggil fungsi setupLCD dari komponen terpisah
+
+        // Setup LCD Display
+        lcd.init();   // Inisialisasi LCD
+        lcd.backlight(); // Nyalakan lampu latar LCD
+        lcd.clear();  // Bersihkan layar
+        lcd.setCursor(0, 0);
+        lcd.print("Coffee Machine");
+        lcd.setCursor(0, 1);
+        lcd.print("Initializing...");
+        Serial.println("LCD terinisialisasi.");
 
         lcd.clear();
         lcd.setCursor(0, 0);
@@ -238,7 +247,7 @@ void setup() {
     // --- Inisialisasi PCF8574 0x21 Order Coffee Button & LED ---
         setupOrderCoffee(PCF8574_FRONT_PANEL_ADDRESS); // Inisialisasi kontrol order kopi
         lcd.setCursor(0, 3);
-        lcd.print("Order Coffee OK!");
+        lcd.print("Front Panel OK!");
         Serial.println(">> Order Coffee (PCF8574 0x21) OK!");
 
     // --- Inisialisasi Bus SPI ---
@@ -250,6 +259,10 @@ void setup() {
     // --- Inisialisasi Modul RFID RC522 ---
         setupRfidCardReader();
         Serial.println(">> RFID Reader terintegrasi OK dari main.cpp!");
+        lcd.setCursor(0, 2);
+        lcd.print("RFID Reader OK!");
+
+        delay(2000); // Beri waktu untuk membaca pesan LCD
 
     // --- Inisialisasi Sensor DHT22 ---
         setupTemperatureHumidity();
@@ -270,6 +283,7 @@ void setup() {
         Serial.println("====================================================");
         Serial.println(">> Inisialisasi WiFi...");
         Serial.println(">> Menghubungkan ke WiFi...");
+        lcd.clear();
         lcd.setCursor(0, 0);
         lcd.print("Connecting to WiFi...");
         lcd.setCursor(0, 1);
@@ -412,8 +426,6 @@ void loop() {
                 json += distance2;
                 json += ",\"distance3\":";
                 json += distance3;
-                json += ",\"relayState\":";
-                json += motorState ? "true" : "false";
 
                 // --- Tambahkan status push button (currentButtonState ada di order_coffee.cpp, tapi extern di order_coffee.h) ---
                 json += ",\"pb1State\":\""; json += (currentButtonState[0] == HIGH ? "HIGH" : "LOW"); json += "\"";

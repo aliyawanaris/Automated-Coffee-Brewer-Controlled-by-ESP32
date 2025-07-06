@@ -8,6 +8,7 @@
 #include <Wire.h>        // Diperlukan untuk komunikasi I2C oleh Adafruit_PCF8574
 #include <Arduino.h>     // Untuk Serial.print, dll.
 #include "components/lcd_display/lcd_display.h" // Diperlukan untuk akses ke objek lcd
+#include "components/motor_control/motor_control.h" // Diperlukan untuk kontrol dinamo
 
 // --- Definisi Objek PCF8574 Kedua ---
 Adafruit_PCF8574 pcf2;
@@ -74,7 +75,10 @@ void setupOrderCoffee(uint8_t pcf2_address) { // Ubah nama fungsi setup
     pcf2.pinMode(DYNAMO_PIN, OUTPUT); // P0 = Dinamo
     pcf2.digitalWrite(DYNAMO_PIN, HIGH); // Pastikan dinamo OFF di awal (asumsi HIGH=OFF)
 
-
+  // --- TAMBAHKAN PIN SETUP UNTUK RELAY POMPA ---
+    pcf2.pinMode(FP_RELAY_PUMP_PIN, OUTPUT); // P7 = Relay untuk Motor Pump
+    pcf2.digitalWrite(FP_RELAY_PUMP_PIN, HIGH); // Pastikan pompa OFF di awal (asumsi HIGH = OFF untuk relay)
+    Serial.println("Order Coffee Front Panel pins configured (including pump relay).");
   }
 
 // --- Implementasi Fungsi untuk Membaca Push Button dengan Debounce ---
@@ -235,7 +239,25 @@ void setupOrderCoffee(uint8_t pcf2_address) { // Ubah nama fungsi setup
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("Memproses Kopi...");
-      lcd.setCursor(0, 1);
+
+      motorPump1_start(); // Mulai pompa air
+      delay(5000); // Tunggu 3 detik untuk memastikan pompa air mulai
+      motorPump1_stop(); // Hentikan pompa air
+      delay(1000); // Tunggu 1 detik sebelum membuka selenoid
+
+      motorPump2_start(); // Mulai dinamo
+      delay(5000); // Tunggu 5 detik untuk memastikan dinamo mulai
+      motorPump2_stop(); // Hentikan dinamo
+      delay(1000); // Tunggu 1 detik sebelum memulai dinamo 4
+
+      motor1_start(); // Mulai dinamo 1
+      delay(1000); // Tunggu 3 detik untuk memastikan dinamo 4
+      motor1_stop(); // Hentikan dinamo 4
+
+      motorPump3_start(); // Mulai pompa kopi
+      delay(5000); // Tunggu 5 detik untuk memastikan pompa kopi mulai
+      motorPump3_stop(); // Hentikan pompa kopi
+
       switch (selectedMenu) {
         case 1: lcd.print("Torabika"); break;
         case 2: lcd.print("Good Day"); break;
@@ -245,3 +267,19 @@ void setupOrderCoffee(uint8_t pcf2_address) { // Ubah nama fungsi setup
       lcd.setCursor(0, 3); lcd.print("                    ");
     }
   }
+
+// --- Implementasi Fungsi Baru untuk Kontrol Motor Pump ---
+// Pastikan fungsi ini ada dan tidak ada typo
+void setPumpMotorState(bool state) {
+  // Asumsi: HIGH = OFF relay (pompa mati), LOW = ON relay (pompa hidup)
+  // Sesuaikan logika HIGH/LOW ini dengan spesifikasi relay Anda (Active-LOW atau Active-HIGH)
+  if (state) { // true = ON
+    pcf2.digitalWrite(FP_RELAY_PUMP_PIN, LOW); // Aktifkan pompa (Active LOW relay)
+    Serial.println("Motor Pump (Relay P7) ON.");
+  } else { // false = OFF
+    pcf2.digitalWrite(FP_RELAY_PUMP_PIN, HIGH); // Matikan pompa (Active LOW relay)
+    Serial.println("Motor Pump (Relay P7) OFF.");
+  }
+}
+
+  ////
