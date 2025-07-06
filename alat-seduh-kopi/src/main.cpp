@@ -154,8 +154,6 @@ std::vector<String> i2cScanner() {
         lcd.setCursor(0, 0);
         lcd.print("I2C Found: ");
         lcd.print(foundAddresses.size());
-        lcd.setCursor(0, 1);
-        lcd.print("                    "); // Clear baris yang mungkin ada sisa alamat
         delay(2000);
     }
 
@@ -198,6 +196,7 @@ void setup() {
     // --- Buat string JSON dari hasil scan I2C untuk WebSocket ---
         if (addresses.empty()) {
             i2cScanResultsJson = "{\"type\":\"i2cScan\",\"addresses\":[]}";
+            Serial.println(">> I2C Scan: Tidak ada perangkat I2C ditemukan."); // Pesan lebih jelas
         } else {
             Serial.println(">> I2C Scan berhasil, alamat ditemukan: " + String(addresses.size()));
         }
@@ -211,7 +210,7 @@ void setup() {
         i2cScanResultsJson += "]}";
         Serial.println(">> I2C Scan JSON untuk Web: " + i2cScanResultsJson);
 
-        // Tampilkan hasil I2C scan di LCD
+               // Tampilkan hasil I2C scan di LCD
         Serial.println(">> Melanjutkan setup setelah I2C scan...");
         lcd.clear();
         lcd.setCursor(0,0);
@@ -222,7 +221,7 @@ void setup() {
         // (PENTING: Hanya panggil sekali di setup() utama (jika digunakan)
         if (!pcf1.begin(PCF8574_MOTOR_CONTROL_ADDRESS, &Wire)) {
         Serial.println(">> PCF8574 (0x20) tidak ditemukan atau gagal inisialisasi.");
-        lcd.setCursor(0, 3);
+        lcd.setCursor(0, 1);
         lcd.print("PCF1 init FAILED!");
         } else {
         Serial.println(">> PCF8574 (0x20) OK!");
@@ -240,14 +239,14 @@ void setup() {
 
     // --- Inisialisasi PCF8574 0x20 Motor Control ---
         setupMotorControl(PCF8574_MOTOR_CONTROL_ADDRESS); // Inisialisasi kontrol motor
-        lcd.setCursor(0, 2);
-        lcd.print("Motor Control OK!");
+        // lcd.setCursor(0, 1);
+        // lcd.print("Motor Control OK!  ");
         Serial.println(">> Motor Control (PCF8574 0x20) OK!");
 
     // --- Inisialisasi PCF8574 0x21 Order Coffee Button & LED ---
         setupOrderCoffee(PCF8574_FRONT_PANEL_ADDRESS); // Inisialisasi kontrol order kopi
-        lcd.setCursor(0, 3);
-        lcd.print("Front Panel OK!");
+        // lcd.setCursor(0, 2);
+        // lcd.print("Front Panel OK!    ");
         Serial.println(">> Order Coffee (PCF8574 0x21) OK!");
 
     // --- Inisialisasi Bus SPI ---
@@ -259,8 +258,8 @@ void setup() {
     // --- Inisialisasi Modul RFID RC522 ---
         setupRfidCardReader();
         Serial.println(">> RFID Reader terintegrasi OK dari main.cpp!");
-        lcd.setCursor(0, 2);
-        lcd.print("RFID Reader OK!");
+        // lcd.setCursor(0, 3);
+        // lcd.print("RFID Reader OK!    ");
 
         delay(2000); // Beri waktu untuk membaca pesan LCD
 
@@ -285,7 +284,7 @@ void setup() {
         Serial.println(">> Menghubungkan ke WiFi...");
         lcd.clear();
         lcd.setCursor(0, 0);
-        lcd.print("Connecting to WiFi...");
+        lcd.print("Connecting to WiFi ");
         lcd.setCursor(0, 1);
 
     // --- Bagian Koneksi WiFi dengan Timeout ---
@@ -355,11 +354,10 @@ void setup() {
         delay(2000); // Beri sedikit waktu untuk membaca status awal
         lcd.clear();
         lcd.setCursor(0, 0);
-        lcd.print("Coffee Wd");
+        lcd.print("Coffee Wd           ");
         lcd.setCursor(0, 2);
-        lcd.print("Silahkan pilih menu");
+        lcd.print("Silahkan pilih menu ");
         lcd.setCursor(0, 3);
-        lcd.print("kopi pilihan anda!");
         // Akhir pesan LCD
         Serial.println("Setup selesai, sistem siap digunakan.");
         Serial.println("Silakan akses server web di: " + WiFi.localIP().toString());

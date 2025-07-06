@@ -240,37 +240,70 @@ void setupOrderCoffee(uint8_t pcf2_address) { // Ubah nama fungsi setup
       lcd.setCursor(0, 0);
       lcd.print("Memproses Kopi...");
 
-      motorPump1_start(); // Mulai pompa air
-      delay(5000); // Tunggu 3 detik untuk memastikan pompa air mulai
-      motorPump1_stop(); // Hentikan pompa air
-      delay(1000); // Tunggu 1 detik sebelum membuka selenoid
+      // Catatan: Nilai kecepatan (speed) untuk motor dinamo dapat disesuaikan dari 0 (mati) hingga 255 (kecepatan penuh).
+      // Anda bisa mencoba berbagai nilai untuk menemukan kecepatan optimal yang Anda inginkan.
 
-      motorPump2_start(); // Mulai dinamo
-      delay(5000); // Tunggu 5 detik untuk memastikan dinamo mulai
-      motorPump2_stop(); // Hentikan dinamo
-      delay(1000); // Tunggu 1 detik sebelum memulai dinamo 4
+      // Proses pengisian air galon
+      motor_pump_galon_start(); // Mulai pompa air galon
+      delay(5000); // Tunggu 5 detik untuk memastikan pompa air mulai
+      motor_pump_galon_stop(); // Hentikan pompa air galon
+      delay(1000); // Jeda sebelum langkah berikutnya
 
-      motor1_start(); // Mulai dinamo 1
-      delay(1000); // Tunggu 3 detik untuk memastikan dinamo 4
-      motor1_stop(); // Hentikan dinamo 4
+      // Proses pemanasan atau pengisian air panas
+      motor_pump_hot_water_start(); // Mulai pompa air panas
+      delay(5000); // Tunggu 5 detik
+      motor_pump_hot_water_stop(); // Hentikan pompa air panas
+      delay(1000); // Jeda
 
-      motorPump3_start(); // Mulai pompa kopi
-      delay(5000); // Tunggu 5 detik untuk memastikan pompa kopi mulai
-      motorPump3_stop(); // Hentikan pompa kopi
+      // Proses motor storage 1
+      motor_storage_1_start(200); // Mulai motor storage 1 dengan kecepatan 200 (contoh)
+      delay(6000); // Tunggu 6 detik
+      motor_storage_1_stop(); // Hentikan motor storage 1
+      delay(1000); // Jeda
 
+      // Proses motor storage 2
+      motor_storage_2_start(200); // Mulai motor storage 2 dengan kecepatan 220 (contoh)
+      delay(2000); // Tunggu 2 detik
+      motor_storage_2_stop(); // Hentikan motor storage 2
+      delay(1000); // Jeda
+
+      // Proses motor storage 3
+      motor_storage_3_start(200); // Mulai motor storage 3 dengan kecepatan 200 (contoh)
+      delay(6000); // Tunggu 6 detik
+      motor_storage_3_stop(); // Hentikan motor storage 3
+      delay(1000); // Jeda
+
+      // Proses motor mixer
+      motor_mixer_start(150); // Mulai motor mixer dengan kecepatan penuh (255)
+      delay(2000); // Tunggu 2 detik
+      motor_mixer_stop(); // Hentikan motor mixer
+      delay(1000); // Jeda
+
+      // Proses seduh kopi
+      motor_pump_seduh_kopi_start(); // Mulai pompa seduh kopi
+      delay(7000); // Tunggu 7 detik
+      motor_pump_seduh_kopi_stop(); // Hentikan pompa seduh kopi
+      delay(1000); // Jeda
+
+      // Menampilkan konfirmasi menu yang dipilih
+      lcd.setCursor(0, 0); // Kembali ke awal baris 0
+      lcd.print("Kopi ");
       switch (selectedMenu) {
         case 1: lcd.print("Torabika"); break;
         case 2: lcd.print("Good Day"); break;
         case 3: lcd.print("ABC Susu"); break;
       }
-      lcd.setCursor(0, 2); lcd.print("                    "); // Clear baris 2 & 3
+      lcd.setCursor(0, 1); lcd.print("Siap!"); // Tampilkan pesan 'Siap!'
+
+      // Membersihkan baris 2 dan 3 setelah proses selesai
+      lcd.setCursor(0, 2); lcd.print("                    ");
       lcd.setCursor(0, 3); lcd.print("                    ");
     }
   }
 
 // --- Implementasi Fungsi Baru untuk Kontrol Motor Pump ---
 // Pastikan fungsi ini ada dan tidak ada typo
-void setPumpMotorState(bool state) {
+void setPumpMotorState(bool state){
   // Asumsi: HIGH = OFF relay (pompa mati), LOW = ON relay (pompa hidup)
   // Sesuaikan logika HIGH/LOW ini dengan spesifikasi relay Anda (Active-LOW atau Active-HIGH)
   if (state) { // true = ON
@@ -281,5 +314,3 @@ void setPumpMotorState(bool state) {
     Serial.println("Motor Pump (Relay P7) OFF.");
   }
 }
-
-  ////
