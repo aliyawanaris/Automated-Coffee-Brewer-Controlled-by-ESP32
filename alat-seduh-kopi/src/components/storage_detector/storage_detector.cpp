@@ -34,16 +34,19 @@ void storage_detector_init_all_sensors() {
     // Inisialisasi pin untuk HC-SR04 #1
     pinMode(SD_TRIG_PIN_1, OUTPUT);
     pinMode(SD_ECHO_PIN_1, INPUT);
+    Serial.println("[STORAGE_DETECTOR] Sensor 1 (Trig:" + String(SD_TRIG_PIN_1) + ", Echo:" + String(SD_ECHO_PIN_1) + ") diinisialisasi.");
 
     // Inisialisasi pin untuk HC-SR04 #2
     pinMode(SD_TRIG_PIN_2, OUTPUT);
     pinMode(SD_ECHO_PIN_2, INPUT);
+    Serial.println("[STORAGE_DETECTOR] Sensor 2 (Trig:" + String(SD_TRIG_PIN_2) + ", Echo:" + String(SD_ECHO_PIN_2) + ") diinisialisasi.");
 
     // Inisialisasi pin untuk HC-SR04 #3
     pinMode(SD_TRIG_PIN_3, OUTPUT);
     pinMode(SD_ECHO_PIN_3, INPUT);
+    Serial.println("[STORAGE_DETECTOR] Sensor 3 (Trig:" + String(SD_TRIG_PIN_3) + ", Echo:" + String(SD_ECHO_PIN_3) + ") diinisialisasi.");
 
-    Serial.println("Semua Sensor Detektor Penyimpanan berhasil diinisialisasi."); // Log rapi
+    Serial.println("[STORAGE_DETECTOR] Semua Sensor Detektor Penyimpanan berhasil diinisialisasi.");
 }
 
 /**
@@ -73,11 +76,7 @@ long storage_detector_get_distance(int trigPin, int echoPin) {
 
     // Jika pulseIn mengembalikan 0, berarti terjadi timeout (tidak ada pantulan)
     if (duration == 0) {
-        Serial.print("Sensor (Trig:");
-        Serial.print(trigPin);
-        Serial.print(", Echo:");
-        Serial.print(echoPin);
-        Serial.println(") Timeout: Tidak ada objek terdeteksi dalam jangkauan."); // Log rapi
+        Serial.println("[STORAGE_DETECTOR] Sensor (Trig:" + String(trigPin) + ", Echo:" + String(echoPin) + ") Timeout: Tidak ada objek terdeteksi dalam jangkauan.");
         return -1; // Mengembalikan -1 untuk menunjukkan error atau di luar jangkauan
     }
 
@@ -87,13 +86,7 @@ long storage_detector_get_distance(int trigPin, int echoPin) {
     long distance = duration * 0.034 / 2; // Menggunakan 0.034 cm/µs untuk penyederhanaan
 
     // --- Output Debugging ke Serial Monitor ---
-    Serial.print("Sensor (Trig:");
-    Serial.print(trigPin);
-    Serial.print(", Echo:");
-    Serial.print(echoPin);
-    Serial.print(") Pengukuran: ");
-    Serial.print(distance);
-    Serial.println(" cm"); // Log rapi
+    Serial.println("[STORAGE_DETECTOR] Sensor (Trig:" + String(trigPin) + ", Echo:" + String(echoPin) + ") Pengukuran: " + String(distance) + " cm");
     // ------------------------------------------
 
     return distance; // Mengembalikan jarak yang terukur

@@ -4,313 +4,372 @@
   serta seluruh logika pemilihan dan pemrosesan menu kopi.
 */
 
-#include "order_coffee.h" // Ubah include header ini sendiri
-#include <Wire.h>        // Diperlukan untuk komunikasi I2C oleh Adafruit_PCF8574
-#include <Arduino.h>     // Untuk Serial.print, dll.
-#include "components/lcd_display/lcd_display.h" // Diperlukan untuk akses ke objek lcd
-#include "components/motor_control/motor_control.h" // Diperlukan untuk kontrol dinamo
+#include "order_coffee.h"
+#include <Wire.h>
+#include <Arduino.h>
+#include "components/lcd_display/lcd_display.h"
+#include "components/motor_control/motor_control.h"
+#include "components/rfid_card_reader/rfid_card_reader.h"
 
 // --- Definisi Objek PCF8574 Kedua ---
 Adafruit_PCF8574 pcf2;
 
 // --- Definisi Variabel Global untuk Debounce ---
-  unsigned long lastDebounceTime[4] = {0};
-  unsigned long debounceDelay = 50;
-  int lastButtonState[4] = {LOW, LOW, LOW, LOW};
-  int currentButtonState[4] = {LOW, LOW, LOW, LOW};
+unsigned long lastDebounceTime[4] = {0};
+unsigned long debounceDelay = 50;
+int lastButtonState[4] = {LOW, LOW, LOW, LOW};
+int currentButtonState[4] = {LOW, LOW, LOW, LOW};
 
 // --- Definisi Variabel Global untuk Logika Menu Kopi ---
-  int selectedMenu = 0; // 0=none, 1=Torabika, 2=Good Day, 3=ABC Susu
-  bool menuConfirmed = false; // True jika tombol konfirmasi ditekan
-  bool menuActive = false;   // True jika sedang dalam mode pemilihan/konfirmasi menu
-  unsigned long menuProcessStartTime = 0; // Waktu mulai proses menu (untuk delay 5 detik)
+int selectedMenu = 0; // 0=none, 1=Torabika, 2=Good Day, 3=ABC Susu
+bool menuConfirmed = false; // True jika tombol konfirmasi ditekan
+bool menuActive = false;    // True jika sedang dalam mode pemilihan/konfirmasi menu
+unsigned long menuProcessStartTime = 0; // Waktu mulai proses menu (untuk delay 5 detik)
 
 // --- Definisi Variabel Global untuk Kontrol LED Blink ---
-  unsigned long lastBlinkMillis = 0;
-  bool ledState = LOW; // Status LED saat ini (LOW=ON untuk Common Anode)
-  bool blinkingStoppedMessagePrinted = false;
+unsigned long lastBlinkMillis = 0;
+bool ledState = HIGH; // Status LED saat ini (HIGH=OFF, LOW=ON untuk Common Anode)
+bool blinkingStoppedMessagePrinted = false; // Untuk mencegah pesan berulang
 
-// --- Implementasi Fungsi ---
-  /**
-   * @brief Menginisialisasi pin-pin front panel yang kini menjadi bagian dari modul order_coffee.
-   * @param pcf2_address Alamat I2C PCF8574 yang digunakan untuk front panel.
-   */
+// --- Variabel Global untuk Mode Menu RFID ---
+bool rfidMenuMode = false; // True jika menu diaktifkan melalui RFID
 
-void setupOrderCoffee(uint8_t pcf2_address) { // Ubah nama fungsi setup
-  // --- Inisialisasi Serial untuk debugging
-  Serial.print("Menginisialisasi PCF8574 (0x");
-  if (pcf2_address < 16) Serial.print("0");
-  Serial.print(pcf2_address, HEX);
-  Serial.println(" - Order Coffee Front Panel)... ");
+// --- Fungsi Baru: Menampilkan Tampilan Menu Idle/Awal ---
+void displayIdleMenu() {
+    Serial.println("[LCD] Menampilkan menu idle...");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Coffee WD           "); // Baris 0
+    lcd.setCursor(0, 1);
+    lcd.print("                    "); // Baris 1 dikosongkan
+    lcd.setCursor(0, 2);
+    lcd.print("Silahkan Tap Kartu  "); // Baris 2
+    lcd.setCursor(0, 3);
+    lcd.print("                    "); // Baris 3 dikosongkan
+}
 
-  if (!pcf2.begin(pcf2_address, &Wire)) {
-    Serial.println("PCF8574 (0x21) Inisialisasi GAGAL!");
-    Serial.print("FATAL ERROR: PCF8574 (0x");
+// --- Implementasi Fungsi setupOrderCoffee ---
+void setupOrderCoffee(uint8_t pcf2_address) {
+    Serial.print("[OrderCoffee] Menginisialisasi PCF8574 (0x");
     if (pcf2_address < 16) Serial.print("0");
     Serial.print(pcf2_address, HEX);
-    Serial.println(") TIDAK DITEMUKAN. Cek alamat & koneksi!");
-    while(true); // Hentikan program jika PCF8574 kedua tidak ditemukan (fatal)
-  }
-  Serial.println("PCF8574 (Order Coffee Front Panel) OK!");
+    Serial.println(" - Order Coffee Front Panel)... ");
 
-  // --- Pin Setup untuk Push Button
-    // Mengatur pin-pin Push Button sebagai INPUT
-    pcf2.pinMode(FP_PB1_PIN, INPUT); // P0 = Push button 1
-    pcf2.pinMode(FP_PB2_PIN, INPUT); // P1 = Push button 2
-    pcf2.pinMode(FP_PB3_PIN, INPUT); // P2 = Push button 3
-    pcf2.pinMode(FP_PB4_PIN, INPUT); // P3 = Push button 4
+    if (!pcf2.begin(pcf2_address, &Wire)) {
+        Serial.println("[OrderCoffee] FATAL ERROR: PCF8574 (0x" + String(pcf2_address, HEX) + ") TIDAK DITEMUKAN. Cek alamat & koneksi!");
+        while(true); // Hentikan eksekusi jika PCF8574 tidak ditemukan
+    }
+    Serial.println("[OrderCoffee] PCF8574 (Order Coffee Front Panel) OK!");
 
-  // --- Pin Setup untuk LED ---
-    // Mengatur pin-pin LED sebagai OUTPUT
-    pcf2.pinMode(FP_LED1_PIN, OUTPUT); // P4 = LED 1
-    pcf2.pinMode(FP_LED2_PIN, OUTPUT); // P5 = LED 2
+    // Set pinmode untuk Push Button (Input)
+    pcf2.pinMode(FP_PB1_PIN, INPUT);
+    pcf2.pinMode(FP_PB2_PIN, INPUT);
+    pcf2.pinMode(FP_PB3_PIN, INPUT);
+    pcf2.pinMode(FP_PB4_PIN, INPUT);
 
-    // Pastikan semua LED mati di awal (HIGH untuk Common Anode, LOW untuk Common Cathode)
-    pcf2.digitalWrite(FP_LED1_PIN, HIGH); // Matikan LED
-    pcf2.digitalWrite(FP_LED2_PIN, HIGH); // Matikan LED
-    Serial.println("Order Coffee Front Panel pins configured.");
+    // Set pinmode untuk LED (Output)
+    pcf2.pinMode(FP_LED1_PIN, OUTPUT);
+    pcf2.pinMode(FP_LED2_PIN, OUTPUT);
 
-  // --- Pin Setup untuk Motor Dinamo ---
-    // Mengatur pin Dinamo sebagai OUTPUT
-    pcf2.pinMode(DYNAMO_PIN, OUTPUT); // P0 = Dinamo
-    pcf2.digitalWrite(DYNAMO_PIN, HIGH); // Pastikan dinamo OFF di awal (asumsi HIGH=OFF)
+    // Matikan semua LED di awal (HIGH untuk Common Anode)
+    pcf2.digitalWrite(FP_LED1_PIN, HIGH);
+    pcf2.digitalWrite(FP_LED2_PIN, HIGH);
+    Serial.println("[OrderCoffee] Order Coffee Front Panel pins configured.");
+}
 
-  // --- TAMBAHKAN PIN SETUP UNTUK RELAY POMPA ---
-    pcf2.pinMode(FP_RELAY_PUMP_PIN, OUTPUT); // P7 = Relay untuk Motor Pump
-    pcf2.digitalWrite(FP_RELAY_PUMP_PIN, HIGH); // Pastikan pompa OFF di awal (asumsi HIGH = OFF untuk relay)
-    Serial.println("Order Coffee Front Panel pins configured (including pump relay).");
-  }
+// --- Implementasi Fungsi readPushButton ---
+bool readPushButton(int buttonPin, int buttonIndex) {
+    int reading = pcf2.digitalRead(buttonPin);
 
-// --- Implementasi Fungsi untuk Membaca Push Button dengan Debounce ---
-  /**
-   * @brief Membaca status push button dengan debounce.
-   * @param buttonPin Pin PCF8574 yang terhubung ke tombol.
-   * @param buttonIndex Indeks tombol (0-3) untuk array status.
-   * @return true jika tombol baru saja ditekan (transisi LOW ke HIGH), false jika tidak.
-   */
-
-  bool readPushButton(int buttonPin, int buttonIndex) {
-    // Validasi indeks tombol
-    int reading = pcf2.digitalRead(buttonPin); // Baca status pin dari PCF8574
-
+    // Jika terjadi perubahan state, reset timer debounce
     if (reading != lastButtonState[buttonIndex]) {
-      lastDebounceTime[buttonIndex] = millis();
+        lastDebounceTime[buttonIndex] = millis();
     }
 
+    // Jika waktu debounce sudah lewat dan state masih sama
     if ((millis() - lastDebounceTime[buttonIndex]) > debounceDelay) {
-      if (reading != currentButtonState[buttonIndex]) {
-        currentButtonState[buttonIndex] = reading;
-        // Deteksi tekanan saat HIGH (transisi dari LOW ke HIGH)
-        if (currentButtonState[buttonIndex] == HIGH) { // Tombol baru saja ditekan
-          Serial.print("Tombol PB");
-          Serial.print(buttonIndex + 1);
-          Serial.println(" ditekan (HIGH)");
-          return true; // Mengembalikan true hanya saat transisi LOW ke HIGH
-        } else {
-          Serial.print("Tombol PB");
-          Serial.print(buttonIndex + 1);
-          Serial.println(" dilepas (LOW)");
+        if (reading != currentButtonState[buttonIndex]) {
+            currentButtonState[buttonIndex] = reading; // Update state tombol
+            if (currentButtonState[buttonIndex] == HIGH) { // Asumsi Active HIGH
+                Serial.println("[OrderCoffee] Tombol PB" + String(buttonIndex + 1) + " ditekan.");
+                return true;
+            } else {
+                Serial.println("[OrderCoffee] Tombol PB" + String(buttonIndex + 1) + " dilepas.");
+            }
         }
-      }
     }
-    lastButtonState[buttonIndex] = reading;
+    lastButtonState[buttonIndex] = reading; // Simpan state terakhir untuk debounce
     return false;
-  }
+}
 
+// --- Implementasi Fungsi startBlinkingLEDs ---
+void startBlinkingLEDs() {
+    stopBlinkingLEDs(); // Pastikan LED mati sebelum mulai blinking
+    lastBlinkMillis = millis();
+    ledState = LOW; // LOW untuk ON pada common anode
+    pcf2.digitalWrite(FP_LED1_PIN, ledState);
+    pcf2.digitalWrite(FP_LED2_PIN, ledState);
+    Serial.println("[OrderCoffee] LEDs mulai blinking.");
+    blinkingStoppedMessagePrinted = false; // Reset flag agar pesan "berhenti" bisa dicetak lagi
+}
 
-// --- Implementasi Fungsi untuk Kontrol LED Blink ---
-  /**
-   * @brief Memulai blinking untuk LED1 dan LED2.
-   */
+// --- Implementasi Fungsi stopBlinkingLEDs ---
+void stopBlinkingLEDs() {
+    // Hanya matikan LED jika mereka saat ini menyala (LOW) atau sedang blinking
+    if (pcf2.digitalRead(FP_LED1_PIN) == LOW || pcf2.digitalRead(FP_LED2_PIN) == LOW || !blinkingStoppedMessagePrinted) {
+        pcf2.digitalWrite(FP_LED1_PIN, HIGH); // Matikan LED (HIGH untuk common anode)
+        pcf2.digitalWrite(FP_LED2_PIN, HIGH);
+        ledState = HIGH; // Set status ke mati
 
-  void startBlinkingLEDs() {
-      stopBlinkingLEDs(); // Pastikan berhenti jika sudah blinking
-      lastBlinkMillis = millis();
-      ledState = LOW; // LED ON (untuk Common Anode)
+        if (!blinkingStoppedMessagePrinted) {
+            Serial.println("[OrderCoffee] LEDs berhenti blinking.");
+            blinkingStoppedMessagePrinted = true; // Tandai bahwa pesan sudah dicetak
+        }
+    }
+}
+
+// --- Implementasi Fungsi updateBlinkingLEDs ---
+void updateBlinkingLEDs(unsigned long currentMillis) {
+    if (currentMillis - lastBlinkMillis >= BLINK_INTERVAL) {
+      lastBlinkMillis = currentMillis;
+      ledState = !ledState; // Toggle LED state
       pcf2.digitalWrite(FP_LED1_PIN, ledState);
       pcf2.digitalWrite(FP_LED2_PIN, ledState);
-      Serial.println("LEDs mulai blinking.");
-      blinkingStoppedMessagePrinted = false; // RESET FLAG DI SINI
-  }
-
-// --- Implementasi Fungsi untuk Kontrol LED Blink ---
-  /**
-   * @brief Menghentikan blinking dan mematikan LED1 dan LED2.
-   */
-
-  void stopBlinkingLEDs() {
-    if (pcf2.digitalRead(FP_LED1_PIN) == LOW || pcf2.digitalRead(FP_LED2_PIN) == LOW || !blinkingStoppedMessagePrinted) {
-      pcf2.digitalWrite(FP_LED1_PIN, HIGH); // LED OFF (untuk Common Anode)
-      pcf2.digitalWrite(FP_LED2_PIN, HIGH); // LED OFF
-      ledState = HIGH; // Set state ke OFF
-
-      if (!blinkingStoppedMessagePrinted) { // CETAK HANYA JIKA BELUM DICETAK
-          Serial.println("LEDs berhenti blinking.");
-          blinkingStoppedMessagePrinted = true; // SET FLAG KE TRUE
-      }
+      blinkingStoppedMessagePrinted = false; // Reset agar pesan bisa dicetak lagi jika blinking berhenti
     }
-  }
+}
 
-// --- Implementasi Fungsi untuk Memperbarui Status Blinking LED ---
-  /**
-   * @brief Memperbarui status blinking LED. Harus dipanggil di loop().
-   * @param currentMillis Waktu millis() saat ini.
-   */
-  void updateBlinkingLEDs(unsigned long currentMillis) {
-      if (currentMillis - lastBlinkMillis >= BLINK_INTERVAL) {
-        lastBlinkMillis = currentMillis;
-        ledState = !ledState; // Toggle state
-        pcf2.digitalWrite(FP_LED1_PIN, ledState);
-        pcf2.digitalWrite(FP_LED2_PIN, ledState);
-        blinkingStoppedMessagePrinted = false; // RESET FLAG SAAT MULAI BLINK LAGI
-      }
-  }
+// --- Implementasi Fungsi selectCoffeeMenu ---
+void selectCoffeeMenu(int menuId) {
+    if (!menuConfirmed) { // Hanya bisa memilih menu jika belum dikonfirmasi
+        selectedMenu = menuId;
+        menuActive = true;
+        startBlinkingLEDs(); // Mulai blinking LED saat menu dipilih
 
-// --- Fungsi Utama untuk Menangani Proses Order Kopi ---
-  void handleOrderCoffee() { // Ubah nama fungsi handle
-    unsigned long currentMillis = millis();
+        Serial.print("[OrderCoffee] Menu: ");
+        lcd.clear(); // Hapus tampilan sebelumnya
+        lcd.setCursor(0, 0);
 
-    // --- Logika Proses Menu (Delay 5 detik setelah konfirmasi) ---
-    if (menuConfirmed && (currentMillis - menuProcessStartTime >= 5000)) {
-      Serial.println("Proses menu 5 detik selesai. Kembali ke tampilan default.");
-      selectedMenu = 0; // Reset menu
-      menuConfirmed = false; // Reset konfirmasi
-      menuActive = false; // Keluar dari mode menu
-      stopBlinkingLEDs(); // Pastikan LED mati
-      lcd.clear(); // Bersihkan LCD
-      // LCD akan diupdate oleh main.ino loop() ke tampilan default
-    }
+        switch (menuId) {
+            case 1:
+                Serial.println("Kopi Torabika dipilih.");
+                lcd.print("Kopi Torabika       ");
+                break;
+            case 2:
+                Serial.println("Kopi Good Day dipilih.");
+                lcd.print("Kopi Good Day       ");
+                break;
+            case 3:
+                Serial.println("Kopi ABC Susu dipilih.");
+                lcd.print("Kopi ABC Susu       ");
+                break;
+            default:
+                Serial.println("Pilihan menu tidak valid.");
+                selectedMenu = 0;
+                menuActive = false;
+                stopBlinkingLEDs(); // Berhenti blinking jika pilihan tidak valid
+                lcd.print("Pilihan tidak valid!");
+                break;
+        }
 
-    // --- Update status blinking LED ---
-    // Panggil updateBlinkingLEDs hanya jika menu aktif dan belum dikonfirmasi
-    if (menuActive && !menuConfirmed) {
-        updateBlinkingLEDs(currentMillis);
+        if (selectedMenu != 0) { // Jika pilihan valid, tampilkan "> Seduh kopi"
+            lcd.setCursor(0, 1);
+            lcd.print("> Seduh kopi        ");
+            lcd.setCursor(0, 2); lcd.print("                    "); // Bersihkan baris 2
+            lcd.setCursor(0, 3); lcd.print("                    "); // Bersihkan baris 3
+        }
     } else {
-        stopBlinkingLEDs(); // Pastikan LED mati jika tidak dalam mode menu
+        Serial.println("[OrderCoffee] Sistem sedang dalam proses menu atau sudah dikonfirmasi. Tidak dapat memilih menu baru.");
     }
+}
 
-    // --- Baca status tombol dan deteksi tekan ---
-    bool pb1Pressed = readPushButton(FP_PB1_PIN, 0);
-    bool pb2Pressed = readPushButton(FP_PB2_PIN, 1);
-    bool pb3Pressed = readPushButton(FP_PB3_PIN, 2);
-    bool pb4Pressed = readPushButton(FP_PB4_PIN, 3);
+// --- Implementasi Fungsi handleOrderCoffee ---
+void handleOrderCoffee() {
+  unsigned long currentMillis = millis();
 
-    // --- Logika Pemilihan Menu (Hanya jika belum ada menu aktif atau sudah dikonfirmasi) ---
-    if (!menuActive && !menuConfirmed) {
-      if (pb1Pressed) {
-        selectedMenu = 1; // Kopi Torabika
-        menuActive = true;
-        startBlinkingLEDs(); // Memulai blinking
-        Serial.println("Menu: Kopi Torabika dipilih.");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Kopi Torabika");
-        lcd.setCursor(0, 3);
-        lcd.print("> Seduh kopi");
-      } else if (pb2Pressed) {
-        selectedMenu = 2; // Kopi Good Day
-        menuActive = true;
-        startBlinkingLEDs(); // Memulai blinking
-        Serial.println("Menu: Kopi Good Day dipilih.");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Kopi Good Day");
-        lcd.setCursor(0, 3);
-        lcd.print("> Seduh kopi");
-      } else if (pb3Pressed) {
-        selectedMenu = 3; // Kopi ABC Susu
-        menuActive = true;
-        startBlinkingLEDs(); // Memulai blinking
-        Serial.println("Menu: Kopi ABC Susu dipilih.");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Kopi ABC Susu");
-        lcd.setCursor(0, 3);
-        lcd.print("> Seduh kopi");
-      }
-    }
+  // --- [1] Logika Reset Sistem Setelah Proses Menu Selesai ---
+  // Menu dikonfirmasi dan sudah 5 detik berlalu sejak proses dimulai
+  if (menuConfirmed && (currentMillis - menuProcessStartTime >= 5000)) {
+    Serial.println("[OrderCoffee] Proses menu selesai (5 detik). Mereset sistem ke mode idle.");
 
-    // --- Logika Konfirmasi (PB4) ---
-    if (menuActive && !menuConfirmed && pb4Pressed) {
-      menuConfirmed = true;
-      menuProcessStartTime = currentMillis; // Catat waktu konfirmasi
-      stopBlinkingLEDs(); // Hentikan blinking (pesan akan dicetak di sini)
-      Serial.println("Menu dikonfirmasi! Memulai proses...");
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Memproses Kopi...");
+    selectedMenu = 0;
+    menuConfirmed = false;
+    menuActive = false;
+    rfidMenuMode = false; // Reset mode RFID
+    rfidErrorActive = false; // Pastikan error RFID juga direset
 
-      // Catatan: Nilai kecepatan (speed) untuk motor dinamo dapat disesuaikan dari 0 (mati) hingga 255 (kecepatan penuh).
-      // Anda bisa mencoba berbagai nilai untuk menemukan kecepatan optimal yang Anda inginkan.
-
-      // Proses pengisian air galon
-      motor_pump_galon_start(); // Mulai pompa air galon
-      delay(5000); // Tunggu 5 detik untuk memastikan pompa air mulai
-      motor_pump_galon_stop(); // Hentikan pompa air galon
-      delay(1000); // Jeda sebelum langkah berikutnya
-
-      // Proses pemanasan atau pengisian air panas
-      motor_pump_hot_water_start(); // Mulai pompa air panas
-      delay(5000); // Tunggu 5 detik
-      motor_pump_hot_water_stop(); // Hentikan pompa air panas
-      delay(1000); // Jeda
-
-      // Proses motor storage 1
-      motor_storage_1_start(200); // Mulai motor storage 1 dengan kecepatan 200 (contoh)
-      delay(6000); // Tunggu 6 detik
-      motor_storage_1_stop(); // Hentikan motor storage 1
-      delay(1000); // Jeda
-
-      // Proses motor storage 2
-      motor_storage_2_start(200); // Mulai motor storage 2 dengan kecepatan 220 (contoh)
-      delay(2000); // Tunggu 2 detik
-      motor_storage_2_stop(); // Hentikan motor storage 2
-      delay(1000); // Jeda
-
-      // Proses motor storage 3
-      motor_storage_3_start(200); // Mulai motor storage 3 dengan kecepatan 200 (contoh)
-      delay(6000); // Tunggu 6 detik
-      motor_storage_3_stop(); // Hentikan motor storage 3
-      delay(1000); // Jeda
-
-      // Proses motor mixer
-      motor_mixer_start(150); // Mulai motor mixer dengan kecepatan penuh (255)
-      delay(2000); // Tunggu 2 detik
-      motor_mixer_stop(); // Hentikan motor mixer
-      delay(1000); // Jeda
-
-      // Proses seduh kopi
-      motor_pump_seduh_kopi_start(); // Mulai pompa seduh kopi
-      delay(7000); // Tunggu 7 detik
-      motor_pump_seduh_kopi_stop(); // Hentikan pompa seduh kopi
-      delay(1000); // Jeda
-
-      // Menampilkan konfirmasi menu yang dipilih
-      lcd.setCursor(0, 0); // Kembali ke awal baris 0
-      lcd.print("Kopi ");
-      switch (selectedMenu) {
-        case 1: lcd.print("Torabika"); break;
-        case 2: lcd.print("Good Day"); break;
-        case 3: lcd.print("ABC Susu"); break;
-      }
-      lcd.setCursor(0, 1); lcd.print("Siap!"); // Tampilkan pesan 'Siap!'
-
-      // Membersihkan baris 2 dan 3 setelah proses selesai
-      lcd.setCursor(0, 2); lcd.print("                    ");
-      lcd.setCursor(0, 3); lcd.print("                    ");
-    }
+    stopBlinkingLEDs();   // Berhenti blinking setelah proses selesai
+    displayIdleMenu();    // Kembali ke tampilan idle setelah proses selesai
   }
 
-// --- Implementasi Fungsi Baru untuk Kontrol Motor Pump ---
-// Pastikan fungsi ini ada dan tidak ada typo
-void setPumpMotorState(bool state){
-  // Asumsi: HIGH = OFF relay (pompa mati), LOW = ON relay (pompa hidup)
-  // Sesuaikan logika HIGH/LOW ini dengan spesifikasi relay Anda (Active-LOW atau Active-HIGH)
-  if (state) { // true = ON
-    pcf2.digitalWrite(FP_RELAY_PUMP_PIN, LOW); // Aktifkan pompa (Active LOW relay)
-    Serial.println("Motor Pump (Relay P7) ON.");
-  } else { // false = OFF
-    pcf2.digitalWrite(FP_RELAY_PUMP_PIN, HIGH); // Matikan pompa (Active LOW relay)
-    Serial.println("Motor Pump (Relay P7) OFF.");
+  // --- [2] Update Status LED Blinking ---
+  // LED hanya blinking saat menu aktif tapi belum dikonfirmasi
+  if (menuActive && !menuConfirmed) {
+      updateBlinkingLEDs(currentMillis);
+  } else {
+      stopBlinkingLEDs();
+  }
+
+  // --- [3] Pembacaan Tombol Front Panel ---
+  bool pb1Pressed = readPushButton(FP_PB1_PIN, 0); // Tombol menu 1
+  bool pb2Pressed = readPushButton(FP_PB2_PIN, 1); // Tombol menu 2
+  bool pb3Pressed = readPushButton(FP_PB3_PIN, 2); // Tombol menu 3
+  bool pb4Pressed = readPushButton(FP_PB4_PIN, 3); // Tombol konfirmasi
+
+  // --- [4] Logika Deteksi Kartu RFID dan Masuk Mode Pemilihan Menu ---
+  // Masuk mode pemilihan kopi HANYA jika kartu RFID terdeteksi DAN sistem benar-benar idle
+  // (Tidak ada menu aktif, belum dikonfirmasi, bukan mode menu RFID yang sedang berlangsung,
+  // dan tidak ada error RFID aktif)
+  if (!currentRfidUid.isEmpty() && !menuActive && !menuConfirmed && !rfidMenuMode && !rfidErrorActive) {
+      // Serial.println("[OrderCoffee] Kartu RFID terdeteksi: " + currentRfidUid + ". Memproses kartu...");
+
+      // processRfidMenuSelection akan mengecek apakah kartu terdaftar
+      // Fungsi ini yang akan mengeset rfidMenuMode dan menuActive jika kartu terdaftar
+      processRfidMenuSelection(currentRfidUid);
+
+      // Jika processRfidMenuSelection berhasil mengaktifkan mode menu RFID
+      if (rfidMenuMode) {
+        Serial.println("[OrderCoffee] Mode pemilihan menu RFID diaktifkan. Tampilkan pilihan kopi di LCD.");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Pilih Kopi:");
+        lcd.setCursor(0, 1);
+        lcd.print("1. Torabika");
+        lcd.setCursor(0, 2);
+        lcd.print("2. Good Day");
+        lcd.setCursor(0, 3);
+        lcd.print("3. ABC Susu");
+        startBlinkingLEDs(); // Mulai blinking LED saat masuk mode pemilihan
+      } else {
+        // Jika kartu terdeteksi tapi tidak valid/terdaftar
+        // Serial.println("[OrderCoffee] Kartu RFID terdeteksi, tapi tidak terdaftar atau tidak valid.");
+        // Logika untuk menampilkan pesan error di LCD untuk durasi tertentu ada di rfid_card_reader.cpp
+      }
+      // currentRfidUid tidak direset di sini; akan direset oleh rfid_card_reader.cpp setelah durasi tampil.
+  }
+
+  // --- [5] Logika Pemilihan Menu oleh Pengguna (Tombol 1, 2, 3) ---
+  // Hanya jika sudah dalam mode pemilihan menu (menuActive) dan belum dikonfirmasi
+  if (menuActive && !menuConfirmed) {
+      if (pb1Pressed) {
+          selectCoffeeMenu(1);
+          // Logikanya sudah di dalam selectCoffeeMenu
+      } else if (pb2Pressed) {
+          selectCoffeeMenu(2);
+          // Logikanya sudah di dalam selectCoffeeMenu
+      } else if (pb3Pressed) {
+          selectCoffeeMenu(3);
+          // Logikanya sudah di dalam selectCoffeeMenu
+      }
+  }
+
+  // --- [6] Logika Konfirmasi Menu (Tombol 4) ---
+  // Konfirmasi hanya jika menu aktif, belum dikonfirmasi, dan ada menu yang sudah dipilih
+  if (menuActive && !menuConfirmed && pb4Pressed && selectedMenu != 0) {
+    menuConfirmed = true;
+    menuProcessStartTime = currentMillis;
+    stopBlinkingLEDs(); // Berhenti blinking setelah konfirmasi
+
+    Serial.println("--- [OrderCoffee] Menu " + String(selectedMenu) + " dikonfirmasi! Memulai proses kopi... ---");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Memproses Kopi...");
+    lcd.setCursor(0, 1); lcd.print("                ");
+    lcd.setCursor(0, 2); lcd.print("                ");
+    lcd.setCursor(0, 3); lcd.print("                ");
+
+    // --- [6.1] Proses Kontrol Motor ---
+    Serial.println("[MotorControl] Memulai pompa galon...");
+    motor_pump_galon_start();
+    delay(7000);
+    motor_pump_galon_stop();
+    Serial.println("[MotorControl] Pompa galon selesai.");
+    delay(1000);
+
+    Serial.println("[MotorControl] Memulai pompa air panas...");
+    motor_pump_hot_water_start();
+    delay(7000);
+    motor_pump_hot_water_stop();
+    Serial.println("[MotorControl] Pompa air panas selesai.");
+    delay(1000);
+
+    Serial.println("[MotorControl] Memutar motor storage 1 (Kopi Torabika)...");
+    motor_storage_1_start(250);
+    delay(1000);
+    motor_storage_1_stop();
+    Serial.println("[MotorControl] Motor storage 1 selesai.");
+    delay(1000);
+
+    Serial.println("[MotorControl] Memutar motor storage 2 (Kopi Good Day)...");
+    motor_storage_2_start(250);
+    delay(1000);
+    motor_storage_2_stop();
+    Serial.println("[MotorControl] Motor storage 2 selesai.");
+    delay(1000);
+
+    Serial.println("[MotorControl] Memutar motor storage 3 (Kopi ABC Susu)...");
+    motor_storage_3_start(250);
+    delay(1000);
+    motor_storage_3_stop();
+    Serial.println("[MotorControl] Motor storage 3 selesai.");
+    delay(1000);
+
+    Serial.println("[MotorControl] Memulai mixer pertama...");
+    motor_mixer_start(200);
+    delay(5000);
+    motor_mixer_stop();
+    Serial.println("[MotorControl] Mixer pertama selesai.");
+    delay(2000);
+
+    Serial.println("[MotorControl] Memulai mixer kedua...");
+    motor_mixer_start(200);
+    delay(5000);
+    motor_mixer_stop();
+    Serial.println("[MotorControl] Mixer kedua selesai.");
+    delay(1000);
+
+    // Mengingat "Selenoid valve GPIO33 adalah 'Selenoid seduh kopi'."
+    Serial.println("[MotorControl] Memulai Selenoid seduh kopi (GPIO33)...");
+    motor_pump_seduh_kopi_start();
+    delay(1000);
+    motor_pump_seduh_kopi_stop();
+    Serial.println("[MotorControl] Selenoid seduh kopi selesai.");
+    delay(1000);
+
+    // Setelah proses selesai, tampilkan "Kopi Siap!" di LCD
+    Serial.print("[OrderCoffee] Kopi ");
+    switch (selectedMenu) {
+      case 1:
+        lcd.setCursor(0, 0); lcd.print("Kopi Torabika   ");
+        Serial.println("Torabika Siap!"); break;
+      case 2:
+        lcd.setCursor(0, 0); lcd.print("Kopi Good Day   ");
+        Serial.println("Good Day Siap!"); break;
+      case 3:
+        lcd.setCursor(0, 0); lcd.print("Kopi ABC Susu   ");
+        Serial.println("ABC Susu Siap!"); break;
+      default:
+        lcd.setCursor(0, 0); lcd.print("Kopi Siap!      ");
+        Serial.println("Siap! (Menu tidak diketahui)"); break;
+    }
+    lcd.setCursor(0, 1); lcd.print("Siap!           ");
+    lcd.setCursor(0, 2); lcd.print("                ");
+    lcd.setCursor(0, 3); lcd.print("                ");
+  }
+
+  // --- [7] Kontrol Tampilan Idle Menu ---
+  // displayIdleMenu hanya akan dipanggil jika sistem benar-benar idle
+  // dan tidak ada pesan error RFID yang sedang aktif
+  static bool idleMenuDisplayed = false; // Flag untuk mencegah refresh berlebihan
+
+  if (!menuActive && !menuConfirmed && !rfidErrorActive && !idleMenuDisplayed) {
+      displayIdleMenu();
+      // Log sudah ada di displayIdleMenu()
+      idleMenuDisplayed = true;
+  } else if (menuActive || menuConfirmed || rfidErrorActive) {
+      if (idleMenuDisplayed) { // Hanya log jika flag direset
+          Serial.println("[OrderCoffee] Aktivitas terdeteksi. Menyembunyikan Idle Menu.");
+      }
+      idleMenuDisplayed = false; // Reset flag saat ada aktivitas
   }
 }

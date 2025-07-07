@@ -80,7 +80,7 @@ String i2cScanResultsJson = "{\"type\":\"i2cScan\",\"addresses\":[]}";
 
 // --- Bagian 9: Fungsi Callback WebSocket ---
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
-               AwsEventType type, void *arg, uint8_t *data, size_t len) {
+                AwsEventType type, void *arg, uint8_t *data, size_t len) {
     if(type == WS_EVT_CONNECT){
         Serial.printf("WebSocket client #%u connected.\n", client->id());
         String jsonRelay = "{\"relayState\":";
@@ -165,203 +165,179 @@ std::vector<String> i2cScanner() {
 
 // --- Bagian 11: Fungsi Setup (Inisialisasi) ---
 void setup() {
-    // --- Inisialisasi Serial Monitor
-        Serial.begin(115200); // Mengatur baud rate Serial Monitor
+    Serial.begin(115200); // Mengatur baud rate Serial Monitor
 
-    // --- Inisialisasi I2C Bus dan LCD ---
-        Wire.begin(21, 22); // SDA di GPIO 21, SCL di GPIO 22
-        Serial.println(">> Inisialisasi I2C Bus...");
+    // --- Log Pembuka Setup ---
+    Serial.println("====================================================");
+    Serial.println("[SETUP START] Memulai Inisialisasi Sistem Kopi");
+    Serial.println("====================================================");
 
-        // Setup LCD Display
-        lcd.init();   // Inisialisasi LCD
-        lcd.backlight(); // Nyalakan lampu latar LCD
-        lcd.clear();  // Bersihkan layar
-        lcd.setCursor(0, 0);
-        lcd.print("Coffee Machine");
-        lcd.setCursor(0, 1);
-        lcd.print("Initializing...");
-        Serial.println("LCD terinisialisasi.");
+    // --- [1] Inisialisasi I2C Bus & Perangkat ---
+    Serial.println("\n--- [1] Inisialisasi I2C Bus & Perangkat ---");
+    Wire.begin(21, 22); // SDA di GPIO 21, SCL di GPIO 22
+    Serial.println("Inisialisasi I2C Bus...");
 
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Mesin Kopi Smart");
-        lcd.setCursor(0, 1);
-        lcd.print("Booting...");
-        delay(1000);
+    // Setup LCD Display
+    setupLCD(); // Fungsi ini sudah mencetak "LCD terinisialisasi."
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Mesin Kopi Smart");
+    lcd.setCursor(0, 1);
+    lcd.print("Booting...");
+    delay(1000);
 
     // --- Panggil fungsi I2C Scanner di awal startup ---
-        Serial.println(">> Memulai I2C Scanner...");
-        std::vector<String> addresses = i2cScanner();
+    Serial.println("Memulai I2C Scanner...");
+    std::vector<String> addresses = i2cScanner();
 
     // --- Buat string JSON dari hasil scan I2C untuk WebSocket ---
-        if (addresses.empty()) {
-            i2cScanResultsJson = "{\"type\":\"i2cScan\",\"addresses\":[]}";
-            Serial.println(">> I2C Scan: Tidak ada perangkat I2C ditemukan."); // Pesan lebih jelas
-        } else {
-            Serial.println(">> I2C Scan berhasil, alamat ditemukan: " + String(addresses.size()));
+    if (addresses.empty()) {
+        i2cScanResultsJson = "{\"type\":\"i2cScan\",\"addresses\":[]}";
+        Serial.println("I2C Scan: Tidak ada perangkat I2C ditemukan.");
+    } else {
+        Serial.println("I2C Scan berhasil, alamat ditemukan: " + String(addresses.size()));
+    }
+    i2cScanResultsJson = "{\"type\":\"i2cScan\",\"addresses\":[";
+    for (size_t i = 0; i < addresses.size(); ++i) {
+        i2cScanResultsJson += "\"" + addresses[i] + "\"";
+        if (i < addresses.size() - 1) {
+            i2cScanResultsJson += ",";
         }
-        i2cScanResultsJson = "{\"type\":\"i2cScan\",\"addresses\":[";
-        for (size_t i = 0; i < addresses.size(); ++i) {
-            i2cScanResultsJson += "\"" + addresses[i] + "\"";
-            if (i < addresses.size() - 1) {
-                i2cScanResultsJson += ",";
-            }
+    }
+    i2cScanResultsJson += "]}";
+    Serial.println("I2C Scan JSON untuk Web: " + i2cScanResultsJson);
+    Serial.println("Melanjutkan setup setelah I2C scan...");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Setup Devices...");
+
+    // --- [2] Inisialisasi Komponen Hardware ---
+    Serial.println("\n--- [2] Inisialisasi Komponen Hardware ---");
+
+    Serial.println("\n--- [2.1] Modul PCF8574 ---");
+    // Inisialisasi Motor Control (PCF8574 0x20)
+    Serial.println("Menginisialisasi PCF8574 (0x20 - Motor Control)...");
+    setupMotorControl(PCF8574_MOTOR_CONTROL_ADDRESS);
+    Serial.println("PCF8574 (Motor Control) OK!");
+    Serial.println("Motor Control pins configured (termasuk LM298N ENA/ENB & semua pompa).");
+    Serial.println("Motor Control (PCF8574 0x20) siap digunakan.");
+
+    // Inisialisasi Order Coffee Front Panel (PCF8574 0x21)
+    Serial.println("\nMenginisialisasi PCF8574 (0x21 - Order Coffee Front Panel)...");
+    setupOrderCoffee(PCF8574_FRONT_PANEL_ADDRESS);
+    Serial.println("PCF8574 (Order Coffee Front Panel) OK!");
+    Serial.println("Order Coffee Front Panel pins configured.");
+    Serial.println("Order Coffee (PCF8574 0x21) siap digunakan.");
+
+    Serial.println("\n--- [2.2] Modul Komunikasi & Sensor ---");
+    // Inisialisasi Bus SPI (untuk RFID)
+    Serial.println("Inisialisasi SPI Bus...");
+    SPI.begin();
+
+    // Inisialisasi Modul RFID RC522
+    setupRfidCardReader();
+    Serial.println("Inisialisasi RFID RC522 selesai.");
+    Serial.println("RFID Reader terintegrasi OK!");
+
+    // Inisialisasi Sensor DHT22
+    setupTemperatureHumidity();
+    Serial.println("DHT22 Sensor diinisialisasi.");
+    Serial.println("DHT22 Sensor terintegrasi OK!");
+
+    // Inisialisasi semua sensor jarak (Storage Detectors)
+    storage_detector_init_all_sensors();
+    Serial.println("Semua Sensor Detektor Penyimpanan berhasil diinisialisasi.");
+
+    Serial.println("\n--- [2.3] Sistem File (SPIFFS) ---");
+    // Inisialisasi SPIFFS untuk melayani file web
+    if (!SPIFFS.begin(true)) {
+        Serial.println("Gagal mount SPIFFS. Pastikan sudah di-upload!");
+        lcd.setCursor(0, 0);
+        lcd.print("ERROR: SPIFFS Fail!");
+        while (true); // Hentikan eksekusi jika SPIFFS gagal
+    }
+    Serial.println("SPIFFS berhasil dimount.");
+
+    // --- [3] Konektivitas Jaringan ---
+    Serial.println("\n--- [3] Konektivitas Jaringan ---");
+    Serial.println("Inisialisasi WiFi...");
+    Serial.println("Menghubungkan ke WiFi.....");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Connecting to WiFi ");
+    lcd.setCursor(0, 1);
+
+    // Koneksi WiFi dengan Timeout
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+
+    unsigned long connectionAttemptStart = millis();
+    const long CONNECTION_TIMEOUT_MS = 30000; // Timeout 30 detik
+
+    int dot_count = 0;
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+        lcd.print(".");
+        dot_count++;
+        if (dot_count >= 10) {
+            lcd.setCursor(0, 1);
+            lcd.print("          "); // Clear 10 spaces
+            lcd.setCursor(0, 1);
+            dot_count = 0;
         }
-        i2cScanResultsJson += "]}";
-        Serial.println(">> I2C Scan JSON untuk Web: " + i2cScanResultsJson);
 
-               // Tampilkan hasil I2C scan di LCD
-        Serial.println(">> Melanjutkan setup setelah I2C scan...");
-        lcd.clear();
-        lcd.setCursor(0,0);
-        lcd.print("Setup Devices...");
-
-    // --- Inisialisasi PCF8574 0x20 ---
-        Serial.println(">> Inisialisasi PCF8574 (0x20)..."); // Tambahkan log untuk inisialisasi
-        // (PENTING: Hanya panggil sekali di setup() utama (jika digunakan)
-        if (!pcf1.begin(PCF8574_MOTOR_CONTROL_ADDRESS, &Wire)) {
-        Serial.println(">> PCF8574 (0x20) tidak ditemukan atau gagal inisialisasi.");
-        lcd.setCursor(0, 1);
-        lcd.print("PCF1 init FAILED!");
-        } else {
-        Serial.println(">> PCF8574 (0x20) OK!");
-        }
-
-    // --- Inisialisasi Pin PCF8574 0x21 ---
-        Serial.println(">> Inisialisasi PCF8574 (0x21)..."); // Tambahkan log untuk inisialisasi
-        if (!pcf2.begin(PCF8574_MOTOR_CONTROL_ADDRESS, &Wire)) {
-            Serial.println(">> PCF8574 (0x21) tidak ditemukan atau gagal inisialisasi.");
-            lcd.setCursor(1, 3);
-            lcd.print("PCF2 init FAILED!");
-        } else {
-            Serial.println(">> PCF8574 (0x21) OK!");
-        }
-
-    // --- Inisialisasi PCF8574 0x20 Motor Control ---
-        setupMotorControl(PCF8574_MOTOR_CONTROL_ADDRESS); // Inisialisasi kontrol motor
-        // lcd.setCursor(0, 1);
-        // lcd.print("Motor Control OK!  ");
-        Serial.println(">> Motor Control (PCF8574 0x20) OK!");
-
-    // --- Inisialisasi PCF8574 0x21 Order Coffee Button & LED ---
-        setupOrderCoffee(PCF8574_FRONT_PANEL_ADDRESS); // Inisialisasi kontrol order kopi
-        // lcd.setCursor(0, 2);
-        // lcd.print("Front Panel OK!    ");
-        Serial.println(">> Order Coffee (PCF8574 0x21) OK!");
-
-    // --- Inisialisasi Bus SPI ---
-        Serial.println(">> Inisialisasi SPI Bus...");
-        // (PENTING: Hanya panggil sekali di setup() utama
-        // untuk menghindari konflik dengan SPI lainnya seperti RFID RC522)
-        SPI.begin();
-
-    // --- Inisialisasi Modul RFID RC522 ---
-        setupRfidCardReader();
-        Serial.println(">> RFID Reader terintegrasi OK dari main.cpp!");
-        // lcd.setCursor(0, 3);
-        // lcd.print("RFID Reader OK!    ");
-
-        delay(2000); // Beri waktu untuk membaca pesan LCD
-
-    // --- Inisialisasi Sensor DHT22 ---
-        setupTemperatureHumidity();
-        Serial.println(">> DHT22 Sensor terintegrasi OK dari main.cpp!");
-
-    // --- Inisialisasi semua sensor jarak ---
-        storage_detector_init_all_sensors();
-
-    // --- Inisialisasi SPIFFS untuk melayani file web ---
-        if(!SPIFFS.begin(true)){
-            Serial.println(">> Gagal mount SPIFFS");
+        if (millis() - connectionAttemptStart > CONNECTION_TIMEOUT_MS) {
+            Serial.println("\nKoneksi WiFi Timeout!");
+            lcd.clear();
             lcd.setCursor(0, 0);
-            lcd.print("ERROR: SPIFFS Fail!");
-            while(true);
+            lcd.print("WiFi FAILED!");
+            lcd.setCursor(0, 1);
+            lcd.print("Check SSID/Pass!");
+            while (true); // Hentikan eksekusi jika WiFi gagal setelah timeout
         }
+    }
+    Serial.println(); // Baris baru setelah titik-titik koneksi
 
-    // --- Inisialisasi WiFi ---
-        Serial.println("====================================================");
-        Serial.println(">> Inisialisasi WiFi...");
-        Serial.println(">> Menghubungkan ke WiFi...");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Connecting to WiFi ");
-        lcd.setCursor(0, 1);
+    // Koneksi WiFi Berhasil
+    Serial.println("WiFi Berhasil Terhubung!");
+    Serial.print("  IP Address: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("  Kekuatan Sinyal (RSSI): ");
+    Serial.print(WiFi.RSSI());
+    Serial.println(" dBm");
 
-    // --- Bagian Koneksi WiFi dengan Timeout ---
-        WiFi.mode(WIFI_STA); // Pastikan ESP32 dalam mode Station
-        WiFi.begin(ssid, password); // Mulai koneksi WiFi
-
-        unsigned long connectionAttemptStart = millis();
-        const long CONNECTION_TIMEOUT_MS = 30000; // Timeout 30 detik
-
-        int dot_count = 0;
-        while(WiFi.status() != WL_CONNECTED){
-            delay(500); // Tunggu sebentar
-            Serial.print(".");
-            lcd.print(".");
-            dot_count++;
-            if (dot_count >= 10) { // Setelah 10 titik, bersihkan baris dan mulai lagi
-                lcd.setCursor(0, 1);
-                lcd.print("          "); // Clear 10 spaces
-                lcd.setCursor(0, 1);
-                dot_count = 0;
-            }
-
-            if (millis() - connectionAttemptStart > CONNECTION_TIMEOUT_MS) {
-                Serial.println("\nKoneksi WiFi Timeout!");
-                lcd.clear();
-                lcd.setCursor(0,0);
-                lcd.print("WiFi FAILED!");
-                lcd.setCursor(0,1);
-                lcd.print("Check SSID/Pass!");
-                while(true); // Hentikan eksekusi jika WiFi gagal setelah timeout
-            }
-        }
-        Serial.println(); // Baris baru setelah titik-titik koneksi
-
-    // --- Bagian Koneksi WiFi Berhasil ---
-        // Jika sampai sini, berarti WiFi sudah terhubung
-        Serial.println("WiFi Berhasil Terhubung!");
-        Serial.print("IP Address: ");
-        Serial.println(WiFi.localIP());
-        Serial.print("Kekuatan Sinyal (RSSI): ");
-        Serial.print(WiFi.RSSI());
-        Serial.println(" dBm");
-
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("WiFi Connected!");
-        lcd.setCursor(0, 1);
-        lcd.print("IP: ");
-        lcd.print(WiFi.localIP());
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi Connected!");
+    lcd.setCursor(0, 1);
+    lcd.print("IP: ");
+    lcd.print(WiFi.localIP());
 
     // --- Konfigurasi WebSocket dan Server Web ---
-    ws.onEvent(onWsEvent); // Atur fungsi callback untuk event WebSocket
-    server.addHandler(&ws); // Tambahkan handler WebSocket ke server
+    ws.onEvent(onWsEvent);
+    server.addHandler(&ws);
 
-    // --- Handler untuk melayani file index.html dari SPIFFS saat root URL diakses ---
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    // Handler untuk melayani file index.html dari SPIFFS
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(SPIFFS, "/index.html", "text/html");
     });
 
-    // --- Mulai server web dan WebSocket ---
-        server.begin(); // Mulai server web
-        Serial.println("Server web dimulai.");
-        lcd.setCursor(0, 2);
-        lcd.print("Server Started!");
+    // Mulai server web dan WebSocket
+    server.begin();
+    Serial.println("Server web dimulai.");
+    lcd.setCursor(0, 2);
+    lcd.print("Server Started!");
 
-    // --- Pesan LCD setelah semua setup selesai ---
-        delay(2000); // Beri sedikit waktu untuk membaca status awal
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Coffee Wd           ");
-        lcd.setCursor(0, 2);
-        lcd.print("Silahkan pilih menu ");
-        lcd.setCursor(0, 3);
-        // Akhir pesan LCD
-        Serial.println("Setup selesai, sistem siap digunakan.");
-        Serial.println("Silakan akses server web di: " + WiFi.localIP().toString());
-        Serial.println("====================================================");
+    // --- Log Penutup Setup ---
+    delay(2000);
+    Serial.println("\n====================================================");
+    Serial.println("[SETUP SELESAI] Sistem siap digunakan.");
+    Serial.println("Silakan akses server web di: " + WiFi.localIP().toString());
+    Serial.println("====================================================");
+
+    // Set tampilan awal LCD ke idle menu
+    displayIdleMenu();
 }
 
 // --- Bagian 12: Fungsi Loop (Eksekusi Berulang) ---
@@ -395,15 +371,7 @@ void loop() {
                 if(distance2 == -1) distance2 = 0;
                 if(distance3 == -1) distance3 = 0;
 
-                // Pesan LCD (sudah Anda pindahkan)
-                lcd.setCursor(0, 0);
-                lcd.print("Coffee Wd");
-                lcd.setCursor(0, 2);
-                lcd.print("Silahkan pilih menu");
-                lcd.setCursor(0, 3);
-                lcd.print("kopi pilihan anda!");
-
-                // --- Update LCD untuk Baris 1 (Rotasi Data Sensor) ---
+                 // --- Update LCD untuk Baris 1 (Rotasi Data Sensor) ---
                 static unsigned long lastSensorDisplayRotateMillis = 0;
                 const long SENSOR_DISPLAY_ROTATE_INTERVAL = 3000; // Rotasi setiap 3 detik
                 static int sensorDisplayMode = 0; // 0=Jarak, 1=DHT, 2=RFID/Motor
@@ -413,10 +381,6 @@ void loop() {
                     sensorDisplayMode = (sensorDisplayMode + 1) % 3; // Rotasi antara 0, 1, 2
                 }
 
-                lcd.setCursor(0, 1); // Baris 1 untuk data sensor
-                lcd.print("                    "); // Clear baris 1
-                lcd.setCursor(0, 1);
-
                 // --- Mengirim Data ke Klien WebSocket ---
                 String json = "{\"distance1\":";
                 json += distance1;
@@ -424,12 +388,6 @@ void loop() {
                 json += distance2;
                 json += ",\"distance3\":";
                 json += distance3;
-
-                // --- Tambahkan status push button (currentButtonState ada di order_coffee.cpp, tapi extern di order_coffee.h) ---
-                json += ",\"pb1State\":\""; json += (currentButtonState[0] == HIGH ? "HIGH" : "LOW"); json += "\"";
-                json += ",\"pb2State\":\""; json += (currentButtonState[1] == HIGH ? "HIGH" : "LOW"); json += "\"";
-                json += ",\"pb3State\":\""; json += (currentButtonState[2] == HIGH ? "HIGH" : "LOW"); json += "\"";
-                json += ",\"pb4State\":\""; json += (currentButtonState[3] == HIGH ? "HIGH" : "LOW"); json += "\"";
 
                 // --- Tambahkan status RFID UID ---
                 json += ",\"rfidUid\":\"";
@@ -441,7 +399,6 @@ void loop() {
                 json += String(currentTemperature, 1); // Format ke 1 desimal
                 json += ",\"humidity\":";
                 json += String(currentHumidity, 0); // Format ke 0 desimal
-
                 json += "}";
 
                 ws.textAll(json); // Kirim JSON ke semua klien WebSocket yang terhubung
@@ -450,5 +407,36 @@ void loop() {
         } else {
             // Jika menu aktif atau sedang diproses, jangan tampilkan data sensor di baris 1 LCD
             // LCD sudah diupdate oleh handleOrderCoffee() saat menu dipilih/dikonfirmasi
+            // Namun, tetap kirim data ke web agar web tetap update
+            if(currentMillis - lastSensorReadMillis >= sensorReadInterval){
+                lastSensorReadMillis = currentMillis;
+
+                long distance1 = storage_detector_get_distance(SD_TRIG_PIN_1, SD_ECHO_PIN_1);
+                long distance2 = storage_detector_get_distance(SD_TRIG_PIN_2, SD_ECHO_PIN_2);
+                long distance3 = storage_detector_get_distance(SD_TRIG_PIN_3, SD_ECHO_PIN_3);
+
+                if(distance1 == -1) distance1 = 0;
+                if(distance2 == -1) distance2 = 0;
+                if(distance3 == -1) distance3 = 0;
+
+                String json = "{\"distance1\":";
+                json += distance1;
+                json += ",\"distance2\":";
+                json += distance2;
+                json += ",\"distance3\":";
+                json += distance3;
+
+                json += ",\"rfidUid\":\"";
+                json += currentRfidUid;
+                json += "\"";
+
+                json += ",\"temperature\":";
+                json += String(currentTemperature, 1);
+                json += ",\"humidity\":";
+                json += String(currentHumidity, 0);
+
+                json += "}";
+                ws.textAll(json);
+            }
         }
 }

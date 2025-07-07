@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <Adafruit_PCF8574.h>
 #include <LiquidCrystal_I2C.h> // Untuk akses ke objek lcd
-// #include "components/motor_control/motor_control.h" // Untuk kontrol dinamo
+#include "components/motor_control/motor_control.h" // Untuk kontrol dinamo
 
 // --- Definisi Pin PCF8574 untuk Front Panel (0x21) ---
 // PIN ANDA DARI SCRIPT YANG DIBERIKAN
@@ -16,12 +16,6 @@ const int FP_PB4_PIN = 3; // P3 = Push button 4
 // --- Definisi Pin LED untuk Front Panel (0x21) ---
 const int FP_LED1_PIN = 4; // P4 = LED 1
 const int FP_LED2_PIN = 5; // P5 = LED 2
-
-// --- Definisi Pin Relay untuk Motor Pump (0x21) ---
-#define FP_RELAY_PUMP_PIN 7 // P7 = Relay untuk Motor Pump
-
-// --- Definisi Pin Dinamo (baru) ---
-#define DYNAMO_PIN FP_PB1_PIN // Dinamo terhubung ke pin 0 PCF8574 (P0), yang adalah FP_PB1_PIN
 
 // --- Deklarasi Variabel Global untuk Logika Menu Kopi ---
 extern int selectedMenu;
@@ -54,10 +48,13 @@ extern int currentButtonState[4];
 extern bool dynamoActive;           // Status dinamo (true=ON, false=OFF)
 extern unsigned long dynamoStartTime; // Waktu dinamo mulai aktif
 const unsigned long DYNAMO_DURATION = 5000; // Durasi dinamo aktif (5 detik)
+extern bool rfidMenuMode;
 
 // --- Prototipe Fungsi Order Coffee ---
 void setupOrderCoffee(uint8_t pcf2_address);
 void handleOrderCoffee();
+void selectCoffeeMenu(int menuId);
+void displayIdleMenu(); // <--- Tambahkan baris ini
 
 // Fungsi helper yang tetap di dalam modul ini
 bool readPushButton(int buttonPin, int buttonIndex);
@@ -65,6 +62,8 @@ void startBlinkingLEDs();
 void stopBlinkingLEDs();
 void updateBlinkingLEDs(unsigned long currentMillis);
 
-void setPumpMotorState(bool state); // Fungsi baru untuk mengontrol pompa
+
+// Fungsi untuk mengupdate scene LCD
+void selectCoffeeMenu(int menuId);
 
 #endif // ORDER_COFFEE_H

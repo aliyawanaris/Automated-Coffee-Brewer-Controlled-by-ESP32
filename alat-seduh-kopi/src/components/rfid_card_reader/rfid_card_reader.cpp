@@ -1,4 +1,6 @@
 #include "rfid_card_reader.h"
+#include "components/lcd_display/lcd_display.h" // Untuk update LCD
+#include "components/order_coffee/order_coffee.h" // Untuk memanggil fungsi pemilihan menu
 
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Buat objek MFRC522
 
@@ -7,43 +9,100 @@ String currentRfidUid = "Belum Terbaca"; // Default value
 unsigned long lastRfidReadMillis = 0;
 const long RFID_DISPLAY_DURATION_MS = 5000; // UID akan ditampilkan selama 5 detik
 
+bool rfidErrorActive = false; // Flag untuk menunjukkan pesan error RFID aktif
+unsigned long rfidErrorStartTime = 0;
+const long RFID_ERROR_DISPLAY_DURATION_MS = 3000; // Durasi tampilan pesan error RFID
+
 void setupRfidCardReader() {
-  // Pastikan SPI.begin() dipanggil sekali di setup() utama (main.ino)
-  // Atau bisa juga dipanggil di sini jika yakin tidak ada komponen lain yang menggunakan SPI
-  // SPI.begin();
-  mfrc522.PCD_Init(); // Inisialisasi MFRC522
-  Serial.println("Inisialisasi RFID RC522 selesai.");
+    mfrc522.PCD_Init(); // Inisialisasi MFRC522
+    Serial.println("[RFID] Inisialisasi RFID RC522 selesai.");
 }
 
 void handleRfidCardReader(unsigned long currentMillis) {
-  // Logika untuk mereset UID setelah durasi tertentu
-  if (currentRfidUid != "Belum Terbaca" && (currentMillis - lastRfidReadMillis > RFID_DISPLAY_DURATION_MS)) {
-    currentRfidUid = "Belum Terbaca";
-    Serial.println("RFID UID direset ke 'Belum Terbaca'.");
-  }
-
-  // Periksa apakah ada kartu baru yang hadir
-  if (mfrc522.PICC_IsNewCardPresent()) {
-    // Pilih salah satu kartu (penting untuk membaca data dari kartu)
-    if (mfrc522.PICC_ReadCardSerial()) {
-      String uidString = "";
-      for (byte i = 0; i < mfrc522.uid.size; i++) {
-        uidString += (mfrc522.uid.uidByte[i] < 0x10 ? "0" : ""); // Tambah "0" di depan jika byte < 16
-        uidString += String(mfrc522.uid.uidByte[i], HEX); // Konversi byte ke heksadesimal
-      }
-      uidString.toUpperCase(); // Ubah ke huruf besar
-
-      // Update UID hanya jika berbeda dari yang terakhir dibaca
-      if (currentRfidUid != uidString) {
-          currentRfidUid = uidString;
-          lastRfidReadMillis = currentMillis; // Simpan waktu baca
-          Serial.print("Kartu RFID Terdeteksi! UID: ");
-          Serial.println(currentRfidUid);
-      }
-      // Jika UID sama, reset timer untuk tetap menampilkannya
-      else {
-          lastRfidReadMillis = currentMillis;
-      }
+    // --- [1] Logika Reset UID dan Pesan Error RFID ---
+    // Reset UID setelah durasi tertentu jika tidak ada kartu yang terdeteksi lagi
+    if (currentRfidUid != "Belum Terbaca" && (currentMillis - lastRfidReadMillis > RFID_DISPLAY_DURATION_MS)) {
+        Serial.println("[RFID] RFID UID direset ke 'Belum Terbaca' setelah " + String(RFID_DISPLAY_DURATION_MS) + "ms.");
+        currentRfidUid = "Belum Terbaca";
+        // Tidak langsung update LCD di sini karena displayIdleMenu() di handleOrderCoffee() akan menanganinya
     }
-  }
+
+    // Reset pesan error RFID setelah durasi tertentu
+    if (rfidErrorActive && (currentMillis - rfidErrorStartTime > RFID_ERROR_DISPLAY_DURATION_MS)) {
+        Serial.println("[RFID] Pesan error RFID direset setelah " + String(RFID_ERROR_DISPLAY_DURATION_MS) + "ms.");
+        rfidErrorActive = false;
+        // LCD akan kembali ke idle menu melalui handleOrderCoffee()
+    }
+
+    // --- [2] Deteksi dan Pembacaan Kartu RFID ---
+    // Periksa apakah ada kartu baru yang hadir atau kartu yang sama masih ada
+    if (mfrc522.PICC_IsNewCardPresent() || mfrc522.PICC_ReadCardSerial()) {
+        if (mfrc522.PICC_ReadCardSerial()) {
+            String uidString = "";
+            for (byte i = 0; i < mfrc522.uid.size; i++) {
+                uidString += (mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
+                uidString += String(mfrc522.uid.uidByte[i], HEX);
+            }
+            uidString.toUpperCase();
+
+            // Hanya proses jika UID yang terbaca berbeda dari yang terakhir
+            // atau jika currentRfidUid sudah direset ("Belum Terbaca")
+            if (currentRfidUid != uidString || currentRfidUid == "Belum Terbaca") {
+                currentRfidUid = uidString;
+                lastRfidReadMillis = currentMillis; // Perbarui waktu terakhir baca
+                Serial.println("[RFID] Kartu RFID Terdeteksi! UID: " + currentRfidUid);
+
+                // Panggil fungsi untuk memproses pilihan menu dari RFID
+                processRfidMenuSelection(currentRfidUid);
+
+                // Tampilkan UID di LCD (misalnya di baris 3)
+                lcd.setCursor(0, 3);
+                lcd.print("ID: " + currentRfidUid + "  "); // Pastikan space cukup untuk menimpa
+            } else {
+                // Kartu yang sama masih terdeteksi, perbarui waktu baca agar tidak direset
+                lastRfidReadMillis = currentMillis;
+                // Serial.println("[RFID] Kartu yang sama masih terdeteksi. UID: " + currentRfidUid); // Opsional: untuk debugging intensif
+            }
+
+            mfrc522.PICC_HaltA(); // Hentikan PICC untuk mencegah pembacaan ganda
+            mfrc522.PCD_StopCrypto1(); // Hentikan enkripsi untuk kartu yang dipilih
+        }
+    }
+}
+
+// --- Implementasi fungsi untuk memproses pilihan menu dari RFID ---
+void processRfidMenuSelection(String rfidUid) {
+    // PENTING: Ganti "XX XX XX XX" dengan UID AKTUAL dari kartu RFID Anda.
+    // Anda bisa mendapatkan UID kartu Anda dari Serial Monitor saat kartu terbaca.
+    // Contoh UID kartu sering dalam format heksadesimal, misal "A1B2C3D4"
+
+    if (rfidUid == "091CD54B") { // Ganti dengan UID Kartu Torabika Anda
+        Serial.println("[RFID] Kartu 'Torabika' terdeteksi. Memilih menu 1.");
+        selectCoffeeMenu(1); // Panggil fungsi di order_coffee.cpp untuk menu 1
+        rfidErrorActive = false; // Pastikan error dinonaktifkan jika kartu valid
+    } else if (rfidUid == "A903E84B") { // Ganti dengan UID Kartu Good Day Anda
+        Serial.println("[RFID] Kartu 'Good Day' terdeteksi. Memilih menu 2.");
+        selectCoffeeMenu(2); // Panggil fungsi di order_coffee.cpp untuk menu 2
+        rfidErrorActive = false; // Pastikan error dinonaktifkan jika kartu valid
+    } else if (rfidUid == "C915EAA3") { // Ganti dengan UID Kartu ABC Susu Anda
+        Serial.println("[RFID] Kartu 'ABC Susu' terdeteksi. Memilih menu 3.");
+        selectCoffeeMenu(3); // Panggil fungsi di order_coffee.cpp untuk menu 3
+        rfidErrorActive = false; // Pastikan error dinonaktifkan jika kartu valid
+    } else {
+        // Serial.println("[RFID] Kartu RFID tidak dikenal: " + rfidUid + ". Menampilkan pesan error.");
+        // rfidErrorActive = true; // Aktifkan flag error
+        // rfidErrorStartTime = millis(); // Catat waktu mulai error
+        // lcd.clear();
+        // lcd.setCursor(0, 0);
+        // lcd.print("RFID Error!");
+        // lcd.setCursor(0, 1);
+        // lcd.print("Kartu tdk terdaftar.");
+        // lcd.setCursor(0, 2);
+        // lcd.print("ID: " + rfidUid); // Tampilkan UID yang tidak dikenal
+        // lcd.setCursor(0, 3);
+        // lcd.print("                    "); // Kosongkan baris bawah
+        // // TIDAK menggunakan delay() di sini untuk menghindari blocking.
+        // // Penanganan tampilan dan penghapusan pesan error akan dilakukan di handleOrderCoffee()
+        // // atau loop utama berdasarkan `rfidErrorActive` dan `rfidErrorStartTime`.
+    }
 }
