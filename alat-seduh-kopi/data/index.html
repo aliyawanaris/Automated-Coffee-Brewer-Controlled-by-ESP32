@@ -40,7 +40,6 @@
         width: 100%;
         max-width: 400px;
         text-align: center;
-        /* margin: 1em; */ /* Diganti dengan gap di main */
         box-sizing: border-box; /* Pastikan padding dihitung dalam width */
       }
 
@@ -48,40 +47,6 @@
         font-size: 2em;
         margin: 0.5em 0;
         font-weight: bold;
-      }
-
-      /* Gaya untuk tombol relay */
-      #relayButton {
-        padding: 12px 25px;
-        font-size: 18px;
-        cursor: pointer;
-        border: none;
-        border-radius: 8px;
-        color: white;
-        margin-top: 1.5em;
-        width: 80%;
-        transition: background-color 0.3s ease;
-      }
-
-      #relayButton.on {
-        background-color: #28a745;
-      }
-      #relayButton.off {
-        background-color: #dc3545;
-      }
-      #relayButton:hover {
-        opacity: 0.9;
-      }
-
-      #relayStatus {
-        font-weight: bold;
-        color: #34495e;
-      }
-      #relayStatus.on {
-        color: green;
-      }
-      #relayStatus.off {
-        color: red;
       }
 
       /* Gaya untuk RFID UID */
@@ -109,29 +74,22 @@
         margin: 5px 0;
       }
 
-      /* Gaya untuk status tombol */
-      .button-status {
-        font-size: 1.2em;
-        margin: 0.8em 0; /* Sesuaikan margin */
+      /* Gaya untuk status stok/sensor */
+      .status-ok {
+        color: #28a745; /* Hijau */
         font-weight: bold;
-        color: #34495e;
-        display: flex; /* Untuk menyejajarkan teks dan indikator */
-        align-items: center;
-        justify-content: center;
       }
-      .button-status .state-indicator {
-        display: inline-block;
-        width: 1.2em;
-        height: 1.2em;
-        border-radius: 50%;
-        margin-left: 0.5em;
-        vertical-align: middle;
+      .status-warning {
+        color: #ffc107; /* Kuning/Oranye */
+        font-weight: bold;
       }
-      .button-status.high .state-indicator {
-        background-color: #28a745; /* Hijau untuk HIGH */
+      .status-critical {
+        color: #dc3545; /* Merah */
+        font-weight: bold;
       }
-      .button-status.low .state-indicator {
-        background-color: #dc3545; /* Merah untuk LOW */
+      .status-na {
+        color: #6c757d; /* Abu-abu */
+        font-weight: bold;
       }
 
       @media (max-width: 600px) {
@@ -145,17 +103,8 @@
         .value {
           font-size: 1.5em;
         }
-        #relayButton {
-          font-size: 16px;
-          padding: 10px 20px;
-        }
-        #rfidUidDisplay,
-        .button-status {
+        #rfidUidDisplay {
           font-size: 1.2em;
-        }
-        .button-status .state-indicator {
-          width: 1em;
-          height: 1em;
         }
       }
     </style>
@@ -169,16 +118,16 @@
       <div class="card">
         <h2>Data Sensor</h2>
         <div>
-          <strong>Kapasitas 1 (Torabika):</strong>
-          <div id="distance1" class="value">-- cm</div>
+          <strong>Stok Kopi 1 (Torabika):</strong>
+          <div id="coffeeStock1Status" class="value">Memuat...</div>
         </div>
         <div>
-          <strong>Kapasitas 2 (Good Day):</strong>
-          <div id="distance2" class="value">-- cm</div>
+          <strong>Stok Kopi 2 (Good Day):</strong>
+          <div id="coffeeStock2Status" class="value">Memuat...</div>
         </div>
         <div>
-          <strong>Kapasitas 3 (ABC Susu):</strong>
-          <div id="distance3" class="value">-- cm</div>
+          <strong>Stok Kopi 3 (ABC Susu):</strong>
+          <div id="coffeeStock3Status" class="value">Memuat...</div>
         </div>
         <hr style="margin: 1.5em 0; border-color: #eee" />
         <div>
@@ -197,6 +146,7 @@
       </div>
 
       <div class="card">
+        <h2>Log I2C Scan</h2>
         <div id="i2cLogDisplay">Memindai perangkat I2C...</div>
       </div>
     </main>
@@ -205,21 +155,16 @@
 
     <script>
       // Dapatkan elemen untuk setiap sensor
-      const distance1El = document.getElementById("distance1");
-      const distance2El = document.getElementById("distance2");
-      const distance3El = document.getElementById("distance3");
+      const coffeeStock1StatusEl =
+        document.getElementById("coffeeStock1Status");
+      const coffeeStock2StatusEl =
+        document.getElementById("coffeeStock2Status");
+      const coffeeStock3StatusEl =
+        document.getElementById("coffeeStock3Status");
       const temperatureEl = document.getElementById("temperature");
       const humidityEl = document.getElementById("humidity");
       const rfidUidDisplayEl = document.getElementById("rfidUidDisplay");
-      const relayStatusEl = document.getElementById("relayStatus");
-      const relayButton = document.getElementById("relayButton");
       const i2cLogDisplayEl = document.getElementById("i2cLogDisplay");
-
-      // Dapatkan elemen untuk status tombol
-      const pb1StatusEl = document.getElementById("pb1Status");
-      const pb2StatusEl = document.getElementById("pb2Status");
-      const pb3StatusEl = document.getElementById("pb3Status");
-      const pb4StatusEl = document.getElementById("pb4Status");
 
       const ws = new WebSocket(`ws://${location.hostname}/ws`);
 
@@ -242,6 +187,30 @@
           return;
         }
 
+        // --- Fungsi Helper untuk menginterpretasikan jarak menjadi teks status stok kopi ---
+        function getCoffeeStockDisplayStatus(distance) {
+          let statusText = "Memuat...";
+          let statusClass = "status-na"; // Default to N/A for unknown state
+
+          const COFFEE_STOCK_THRESHOLD = 7; // Ambang batas stok kopi dalam cm
+
+          if (distance === undefined) {
+            statusText = "Data N/A";
+          } else if (distance === -1) {
+            // Sensor error / tidak terdeteksi
+            statusText = "Sensor Error/N/A";
+            statusClass = "status-warning";
+          } else if (distance >= COFFEE_STOCK_THRESHOLD) {
+            statusText = "Stok Menipis/Habis";
+            statusClass = "status-critical";
+          } else {
+            // distance < COFFEE_STOCK_THRESHOLD
+            statusText = "Stok Tersedia";
+            statusClass = "status-ok";
+          }
+          return { text: statusText, class: statusClass };
+        }
+
         // --- PENANGANAN DATA I2C SCAN ---
         if (data.type === "i2cScan") {
           i2cLogDisplayEl.innerHTML = ""; // Bersihkan konten lama
@@ -252,7 +221,9 @@
           ) {
             data.addresses.forEach((addr) => {
               const p = document.createElement("p");
-              p.textContent = `Perangkat I2C ditemukan di: ${addr}`;
+              p.textContent = `Perangkat I2C ditemukan di: 0x${addr
+                .toString(16)
+                .toUpperCase()}`; // Format ke hex
               i2cLogDisplayEl.appendChild(p);
             });
           } else {
@@ -261,58 +232,39 @@
         }
         // --- AKHIR PENANGANAN DATA I2C SCAN ---
 
-        // Perbarui elemen sensor jarak
-        if (data.distance1 !== undefined) {
-          distance1El.textContent = `${data.distance1} cm`;
-        }
-        if (data.distance2 !== undefined) {
-          distance2El.textContent = `${data.distance2} cm`;
-        }
-        if (data.distance3 !== undefined) {
-          distance3El.textContent = `${data.distance3} cm`;
-        }
+        // --- Perbarui status Stok Kopi 1 (Distance 1) ---
+        const coffee1Status = getCoffeeStockDisplayStatus(data.distance1);
+        coffeeStock1StatusEl.textContent = coffee1Status.text;
+        coffeeStock1StatusEl.className = `value ${coffee1Status.class}`;
+
+        // --- Perbarui status Stok Kopi 2 (Distance 2) ---
+        const coffee2Status = getCoffeeStockDisplayStatus(data.distance2);
+        coffeeStock2StatusEl.textContent = coffee2Status.text;
+        coffeeStock2StatusEl.className = `value ${coffee2Status.class}`;
+
+        // --- Perbarui status Stok Kopi 3 (Distance 3) ---
+        const coffee3Status = getCoffeeStockDisplayStatus(data.distance3);
+        coffeeStock3StatusEl.textContent = coffee3Status.text;
+        coffeeStock3StatusEl.className = `value ${coffee3Status.class}`;
 
         // Perbarui suhu dan kelembaban
         if (data.temperature !== undefined) {
           temperatureEl.textContent = `${data.temperature.toFixed(1)} °C`;
+        } else {
+          temperatureEl.textContent = `-- °C`;
         }
         if (data.humidity !== undefined) {
           humidityEl.textContent = `${data.humidity.toFixed(1)} %`;
+        } else {
+          humidityEl.textContent = `-- %`;
         }
 
-        // Perbarui status relay (Selenoid seduh kopi)
-        if (data.relayState !== undefined) {
-          updateRelayStatus(data.relayState);
-        }
-
-        // --- Perbarui status Push Button ---
-        function updateButtonStatus(element, state) {
-          const stateText = state.toUpperCase();
-          element.classList.remove("high", "low");
-          element.classList.add(state.toLowerCase());
-          // Update the text content of the span (last child)
-          element.querySelector("span:last-child").textContent = stateText;
-        }
-
-        if (data.pb1State !== undefined) {
-          updateButtonStatus(pb1StatusEl, data.pb1State);
-        }
-        if (data.pb2State !== undefined) {
-          updateButtonStatus(pb2StatusEl, data.pb2State);
-        }
-        if (data.pb3State !== undefined) {
-          updateButtonStatus(pb3StatusEl, data.pb3State);
-        }
-        if (data.pb4State !== undefined) {
-          updateButtonStatus(pb4StatusEl, data.pb4State);
-        }
-        // --- Akhir Perbarui status Push Button ---
-
-        // --- Perbarui status RFID UID ---
+        // Perbarui status RFID UID
         if (data.rfidUid !== undefined) {
           rfidUidDisplayEl.textContent = data.rfidUid;
+        } else {
+          rfidUidDisplayEl.textContent = `Belum Terbaca`;
         }
-        // --- Akhir Perbarui status RFID UID ---
       };
 
       ws.onclose = () => {
@@ -327,34 +279,6 @@
       ws.onerror = (error) => {
         console.error("WebSocket Error:", error);
       };
-
-      function updateRelayStatus(state) {
-        if (state === true || state === "true") {
-          relayStatusEl.textContent = "ON";
-          relayStatusEl.classList.remove("off");
-          relayStatusEl.classList.add("on");
-          relayButton.classList.remove("off");
-          relayButton.classList.add("on");
-          relayButton.textContent = "Matikan Selenoid"; // Sesuaikan teks
-        } else {
-          relayStatusEl.textContent = "OFF";
-          relayStatusEl.classList.remove("on");
-          relayStatusEl.classList.add("off");
-          relayButton.classList.remove("on");
-          relayButton.classList.add("off");
-          relayButton.textContent = "Nyalakan Selenoid"; // Sesuaikan teks
-        }
-      }
-
-      relayButton.addEventListener("click", () => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send("toggleRelay");
-        } else {
-          console.warn(
-            "WebSocket tidak terhubung. Tidak bisa mengirim perintah."
-          );
-        }
-      });
     </script>
   </body>
 </html>

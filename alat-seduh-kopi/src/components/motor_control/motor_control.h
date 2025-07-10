@@ -23,14 +23,23 @@
 #define LM298N2_ENB_PIN 12 // GPIO12 untuk ENB LM298N #2 (mengontrol Mixer)
 
 // --- Definisi Pin Motor Pump (Relay) pada ESP32 ---
-#define MOTOR_PUMP_GALON_RELAY_PIN 32      // Pompa Air Galon
-#define MOTOR_PUMP_HOT_WATER_RELAY_PIN 25  // Pompa Air Panas - Water Heater
-#define MOTOR_PUMP_SEDUH_KOPI_RELAY_PIN 33 // Pompa Air Seduh Kopi
+#define MOTOR_PUMP_GALON_RELAY_PIN 25      // IN1 - Pompa Air Galon
+#define MOTOR_PUMP_HOT_WATER_RELAY_PIN 33  // IN2 - Pompa Air Panas - Water Heater
+#define MOTOR_PUMP_SEDUH_KOPI_RELAY_PIN 32 // IN4 - Pompa Air Seduh Kopi
 
 // --- Deklarasi Objek PCF8574 sebagai extern ---
 extern Adafruit_PCF8574 pcf; // Objek PCF8574 global untuk motor control
 
-// --- Prototipe Fungsi Motor Control ---
+// --- Deklarasi Variabel Status Motor (Extern) ---
+// Variabel ini didefinisikan di motor_control.cpp dan diakses di tempat lain melalui 'extern'
+extern bool dynamoIsActive;    // Motor dinamo (pomp galon)
+extern bool storage1IsActive;  // Motor storage 1 (Torabika)
+extern bool storage2IsActive;  // Motor storage 2 (Good Day)
+extern bool storage3IsActive;  // Motor storage 3 (ABC Susu)
+extern bool mixerIsActive;     // Motor mixer
+extern bool pumpGalonIsActive; // Tambahan: status pompa galon
+extern bool pumpHotWaterIsActive; // Tambahan: status pompa air panas
+extern bool pumpSeduhKopiIsActive; // Tambahan: status selenoid seduh kopi
 
 // Fungsi inisialisasi motor control
 void setupMotorControl(uint8_t pcf_address);
@@ -48,7 +57,7 @@ void motor_storage_3_start(int speed = 255); // Ditambah parameter speed, defaul
 void motor_storage_3_stop();
 
 // Fungsi untuk mengontrol motor mixer (terhubung ke LM298N #2)
-void motor_mixer_start(int speed = 255); // Ditambah parameter speed, default full speed
+void motor_mixer_start(int speed = 200); // Ditambah parameter speed, default full speed
 void motor_mixer_stop();
 
 // Fungsi untuk mengontrol pompa air galon

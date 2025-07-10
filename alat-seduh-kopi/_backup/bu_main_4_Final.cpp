@@ -55,8 +55,8 @@ didefinisikan di 'components/storage_detector/storage_detector.h'.
 #include "components/motor_control/motor_control.h"
 
 // --- Bagian 2: Konfigurasi Wi-Fi ---
-const char* ssid = "Coffee WD";
-const char* password = "coffeewd123";
+const char* ssid = "Pikan Miku";
+const char* password = "jasamaru123";
 
 // --- Bagian 3: Konfigurasi Perangkat Keras & Variabel Status ---
 const int motorPin = 4;

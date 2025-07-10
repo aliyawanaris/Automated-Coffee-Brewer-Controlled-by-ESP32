@@ -65,5 +65,6 @@ void updateBlinkingLEDs(unsigned long currentMillis);
 
 // Fungsi untuk mengupdate scene LCD
 void selectCoffeeMenu(int menuId);
+void setRfidMenuMode(bool mode);
 
 #endif // ORDER_COFFEE_H

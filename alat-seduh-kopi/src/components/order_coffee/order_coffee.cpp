@@ -274,67 +274,66 @@ void handleOrderCoffee() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Memproses Kopi...");
-    lcd.setCursor(0, 1); lcd.print("                ");
-    lcd.setCursor(0, 2); lcd.print("                ");
-    lcd.setCursor(0, 3); lcd.print("                ");
+    lcd.setCursor(0, 1); lcd.print("                    ");
+    lcd.setCursor(0, 2); lcd.print("                    ");
+    lcd.setCursor(0, 3); lcd.print("                    ");
 
-    // --- [6.1] Proses Kontrol Motor ---
+    // --- [6.1] Proses Kontrol Motor Sesuai Pilihan Kopi ---
     Serial.println("[MotorControl] Memulai pompa galon...");
     motor_pump_galon_start();
-    delay(7000);
+    delay(6500); // Aktif selama 6.5 detik
     motor_pump_galon_stop();
     Serial.println("[MotorControl] Pompa galon selesai.");
-    delay(1000);
+    delay(16000); // Tunggu 16 detik untuk masak air panas
 
     Serial.println("[MotorControl] Memulai pompa air panas...");
     motor_pump_hot_water_start();
-    delay(7000);
+    Serial.println("[MotorControl] Memulai mixer...");
+
+    motor_mixer_start(150); // Mulai mixer dengan kecepatan 250
+    delay(10000);    // Aktif selama 10 detik air panas turun ke mixer
     motor_pump_hot_water_stop();
     Serial.println("[MotorControl] Pompa air panas selesai.");
     delay(1000);
 
-    Serial.println("[MotorControl] Memutar motor storage 1 (Kopi Torabika)...");
-    motor_storage_1_start(250);
-    delay(1000);
-    motor_storage_1_stop();
-    Serial.println("[MotorControl] Motor storage 1 selesai.");
-    delay(1000);
+    // Kontrol motor storage berdasarkan pilihan kopi
+    switch (selectedMenu) {
+        case 1: // Torabika
+            Serial.println("[MotorControl] Mengaktifkan motor_storage_1 (Torabika) selama 6 detik...");
+            motor_storage_1_start(250); // Asumsi 250 adalah kecepatan/PWM
+            delay(4000); // Aktif selama 7 detik
+            motor_storage_1_stop();
+            Serial.println("[MotorControl] motor_storage_1 (Torabika) selesai.");
+            break;
+        case 2: // Good Day
+            Serial.println("[MotorControl] Mengaktifkan motor_storage_2 (Good Day) selama 2 detik...");
+            motor_storage_2_start(250); // Asumsi 250 adalah kecepatan/PWM
+            delay(4000); // Aktif selama 3 detik
+            motor_storage_2_stop();
+            Serial.println("[MotorControl] motor_storage_2 (Good Day) selesai.");
+            break;
+        case 3: // ABC Susu
+            Serial.println("[MotorControl] Mengaktifkan motor_storage_3 (ABC Susu) selama 6 detik...");
+            motor_storage_3_start(250); // Asumsi 250 adalah kecepatan/PWM
+            delay(4000); // Aktif selama 7 detik
+            motor_storage_3_stop();
+            Serial.println("[MotorControl] motor_storage_3 (ABC Susu) selesai.");
+            break;
+        default:
+            Serial.println("[MotorControl] Tidak ada motor storage yang diaktifkan untuk pilihan menu ini.");
+            break;
+    }
 
-    Serial.println("[MotorControl] Memutar motor storage 2 (Kopi Good Day)...");
-    motor_storage_2_start(250);
-    delay(1000);
-    motor_storage_2_stop();
-    Serial.println("[MotorControl] Motor storage 2 selesai.");
-    delay(1000);
-
-    Serial.println("[MotorControl] Memutar motor storage 3 (Kopi ABC Susu)...");
-    motor_storage_3_start(250);
-    delay(1000);
-    motor_storage_3_stop();
-    Serial.println("[MotorControl] Motor storage 3 selesai.");
-    delay(1000);
-
-    Serial.println("[MotorControl] Memulai mixer pertama...");
-    motor_mixer_start(200);
-    delay(5000);
+    delay(7000); // proses mixing 7 detik
     motor_mixer_stop();
-    Serial.println("[MotorControl] Mixer pertama selesai.");
-    delay(2000);
-
-    Serial.println("[MotorControl] Memulai mixer kedua...");
-    motor_mixer_start(200);
-    delay(5000);
-    motor_mixer_stop();
-    Serial.println("[MotorControl] Mixer kedua selesai.");
-    delay(1000);
+    Serial.println("[MotorControl] Mixer selesai.");
 
     // Mengingat "Selenoid valve GPIO33 adalah 'Selenoid seduh kopi'."
     Serial.println("[MotorControl] Memulai Selenoid seduh kopi (GPIO33)...");
     motor_pump_seduh_kopi_start();
-    delay(1000);
+    delay(10000); // Aktif selama 20 detik kopi turun dari mixer ke gelas
     motor_pump_seduh_kopi_stop();
-    Serial.println("[MotorControl] Selenoid seduh kopi selesai.");
-    delay(1000);
+    Serial.println("[MotorControl] seduh kopi selesai.");
 
     // Setelah proses selesai, tampilkan "Kopi Siap!" di LCD
     Serial.print("[OrderCoffee] Kopi ");
@@ -353,8 +352,8 @@ void handleOrderCoffee() {
         Serial.println("Siap! (Menu tidak diketahui)"); break;
     }
     lcd.setCursor(0, 1); lcd.print("Siap!           ");
-    lcd.setCursor(0, 2); lcd.print("                ");
-    lcd.setCursor(0, 3); lcd.print("                ");
+    lcd.setCursor(0, 2); lcd.print("                    ");
+    lcd.setCursor(0, 3); lcd.print("                    ");
   }
 
   // --- [7] Kontrol Tampilan Idle Menu ---
@@ -372,4 +371,8 @@ void handleOrderCoffee() {
       }
       idleMenuDisplayed = false; // Reset flag saat ada aktivitas
   }
+}
+
+void setRfidMenuMode(bool mode) {
+  rfidMenuMode = mode;
 }

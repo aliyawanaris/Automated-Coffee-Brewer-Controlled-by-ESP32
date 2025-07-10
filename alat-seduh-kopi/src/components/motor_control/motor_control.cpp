@@ -147,7 +147,7 @@ void motor_storage_3_stop() {
 
 // Motor Mixer (LM298N #2, ENB: GPIO12)
 void motor_mixer_start(int speed) {
-    speed = constrain(speed, 0, 255);
+    speed = constrain(speed, 0, 200);
     Serial.println("[MOTOR_CONTROL] Motor Mixer START (Speed: " + String(speed) + ") [ENB: GPIO12]");
     pcf.digitalWrite(MOTOR_MIXER_IN1_PIN, HIGH);
     pcf.digitalWrite(MOTOR_MIXER_IN2_PIN, LOW);
@@ -198,4 +198,15 @@ void motor_pump_seduh_kopi_stop() {
     Serial.println("[MOTOR_CONTROL] Selenoid Seduh Kopi OFF (GPIO33)");
     digitalWrite(MOTOR_PUMP_SEDUH_KOPI_RELAY_PIN, HIGH); // Asumsi HIGH = OFF untuk relay
     motorPumpSeduhKopiActive = false; // Update status
+}
+
+void motor_all_stop() {
+    motor_storage_1_stop();
+    motor_storage_2_stop();
+    motor_storage_3_stop();
+    motor_mixer_stop();
+    motor_pump_galon_stop();
+    motor_pump_hot_water_stop();
+    motor_pump_seduh_kopi_stop();
+    Serial.println("[MotorControl] Semua motor dan pompa dihentikan.");
 }

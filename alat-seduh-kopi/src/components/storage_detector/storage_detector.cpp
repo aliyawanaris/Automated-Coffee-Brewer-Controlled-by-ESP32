@@ -12,15 +12,15 @@
 // Pin-pin ini harus sesuai dengan koneksi fisik HC-SR04 ke ESP32.
 // Penting: Pastikan pin yang dipilih tidak bentrok dengan modul lain (misalnya I2C, SPI).
 
-// HC-SR04 #1: Digunakan untuk mengukur Kapasitas 1 (misalnya Biji Kopi)
+// HC-SR04 #1: Digunakan untuk mengukur Kapasitas Kopi 1
 const int SD_TRIG_PIN_1 = 27; // Pin Trigger HC-SR04 #1 (OUTPUT: mengirim pulsa suara)
 const int SD_ECHO_PIN_1 = 34; // Pin Echo HC-SR04 #1 (INPUT: menerima pulsa pantulan suara)
 
-// HC-SR04 #2: Digunakan untuk mengukur Kapasitas 2 (misalnya Air Bersih)
+// HC-SR04 #2: Digunakan untuk mengukur Kapasitas Kopi 2
 const int SD_TRIG_PIN_2 = 14; // Pin Trigger HC-SR04 #2
 const int SD_ECHO_PIN_2 = 35; // Pin Echo HC-SR04 #2
 
-// HC-SR04 #3: Digunakan untuk mengukur Kapasitas 3 (misalnya Ampas Kopi)
+// HC-SR04 #3: Digunakan untuk mengukur Kapasitas Kopi 3
 const int SD_TRIG_PIN_3 = 13; // Pin Trigger HC-SR04 #3
 const int SD_ECHO_PIN_3 = 36; // Pin Echo HC-SR04 #3
 
@@ -37,11 +37,13 @@ void storage_detector_init_all_sensors() {
     Serial.println("[STORAGE_DETECTOR] Sensor 1 (Trig:" + String(SD_TRIG_PIN_1) + ", Echo:" + String(SD_ECHO_PIN_1) + ") diinisialisasi.");
 
     // Inisialisasi pin untuk HC-SR04 #2
+    digitalWrite(SD_TRIG_PIN_2, LOW); // Pastikan LOW sebelum pinMode agar tidak ada pulsa awal
     pinMode(SD_TRIG_PIN_2, OUTPUT);
     pinMode(SD_ECHO_PIN_2, INPUT);
     Serial.println("[STORAGE_DETECTOR] Sensor 2 (Trig:" + String(SD_TRIG_PIN_2) + ", Echo:" + String(SD_ECHO_PIN_2) + ") diinisialisasi.");
 
     // Inisialisasi pin untuk HC-SR04 #3
+    digitalWrite(SD_TRIG_PIN_3, LOW); // Pastikan LOW sebelum pinMode agar tidak ada pulsa awal
     pinMode(SD_TRIG_PIN_3, OUTPUT);
     pinMode(SD_ECHO_PIN_3, INPUT);
     Serial.println("[STORAGE_DETECTOR] Sensor 3 (Trig:" + String(SD_TRIG_PIN_3) + ", Echo:" + String(SD_ECHO_PIN_3) + ") diinisialisasi.");
@@ -90,4 +92,40 @@ long storage_detector_get_distance(int trigPin, int echoPin) {
     // ------------------------------------------
 
     return distance; // Mengembalikan jarak yang terukur
+}
+
+/**
+ * @brief Mendapatkan status stok kopi dalam bentuk teks.
+ * Mengukur jarak menggunakan pin sensor yang diberikan dan menginterpretasikannya
+ * menjadi pesan status "Stok Kopi Menipis/Habis" atau "Stok Tersedia".
+ * @param trigPin Pin Trigger HC-SR04.
+ * @param echoPin Pin Echo HC-SR04.
+ * @return String yang berisi status stok kopi.
+ */
+String getCoffeeStockStatus(int trigPin, int echoPin) {
+    long distance = storage_detector_get_distance(trigPin, echoPin); // Ambil jarak sensor kopi
+
+    // Threshold 12 cm untuk stok kopi: >=12cm menipis/habis, <12cm tersedia
+    const int COFFEE_STOCK_THRESHOLD = 8;
+
+    if (distance == -1) {
+        return "Sensor Error/N/A";
+    } else if (distance >= COFFEE_STOCK_THRESHOLD) {
+        return "Stok Menipis/Habis";
+    } else { // distance < COFFEE_STOCK_THRESHOLD
+        return "Stok Tersedia";
+    }
+}
+
+// Fungsi getCoffeeStockStatus() yang spesifik untuk setiap sensor
+String getCoffee1StockStatus() {
+    return getCoffeeStockStatus(SD_TRIG_PIN_1, SD_ECHO_PIN_1);
+}
+
+String getCoffee2StockStatus() {
+    return getCoffeeStockStatus(SD_TRIG_PIN_2, SD_ECHO_PIN_2);
+}
+
+String getCoffee3StockStatus() {
+    return getCoffeeStockStatus(SD_TRIG_PIN_3, SD_ECHO_PIN_3);
 }
