@@ -2,7 +2,7 @@
 #define MOTOR_CONTROL_H
 
 #include <Arduino.h>
-#include <Adafruit_PCF8574.h> // Asumsi menggunakan Adafruit_PCF8574 untuk motor control
+#include <Adafruit_PCF8574.h>
 
 // --- Definisi Pin Motor pada PCF8574 (0x20) ---
 // PCF8574 (0x20) & LM298N #1
@@ -28,10 +28,9 @@
 #define MOTOR_PUMP_SEDUH_KOPI_RELAY_PIN 32 // IN4 - Pompa Air Seduh Kopi
 
 // --- Deklarasi Objek PCF8574 sebagai extern ---
-extern Adafruit_PCF8574 pcf; // Objek PCF8574 global untuk motor control
+extern Adafruit_PCF8574 pcf;
 
 // --- Deklarasi Variabel Status Motor (Extern) ---
-// Variabel ini didefinisikan di motor_control.cpp dan diakses di tempat lain melalui 'extern'
 extern bool dynamoIsActive;    // Motor dinamo (pomp galon)
 extern bool storage1IsActive;  // Motor storage 1 (Torabika)
 extern bool storage2IsActive;  // Motor storage 2 (Good Day)
@@ -45,19 +44,19 @@ extern bool pumpSeduhKopiIsActive; // Tambahan: status selenoid seduh kopi
 void setupMotorControl(uint8_t pcf_address);
 
 // Fungsi untuk mengontrol motor storage 1 (terhubung ke LM298N #2)
-void motor_storage_1_start(int speed = 255); // Ditambah parameter speed, default full speed
+void motor_storage_1_start(int speed = 255);
 void motor_storage_1_stop();
 
 // Fungsi untuk mengontrol motor storage 2 (terhubung ke LM298N #1)
-void motor_storage_2_start(int speed = 255); // Ditambah parameter speed, default full speed
+void motor_storage_2_start(int speed = 255);
 void motor_storage_2_stop();
 
 // Fungsi untuk mengontrol motor storage 3 (terhubung ke LM298N #1)
-void motor_storage_3_start(int speed = 255); // Ditambah parameter speed, default full speed
+void motor_storage_3_start(int speed = 255);
 void motor_storage_3_stop();
 
 // Fungsi untuk mengontrol motor mixer (terhubung ke LM298N #2)
-void motor_mixer_start(int speed = 200); // Ditambah parameter speed, default full speed
+void motor_mixer_start(int speed = 200);
 void motor_mixer_stop();
 
 // Fungsi untuk mengontrol pompa air galon

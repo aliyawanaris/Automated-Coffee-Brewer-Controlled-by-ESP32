@@ -1,8 +1,3 @@
-/*
-  src/components/order_coffee/order_coffee.cpp - Implementasi Komponen Order Kopi
-  Mengelola input Push Button, output LED pada PCF8574 kedua (0x21),
-  serta seluruh logika pemilihan dan pemrosesan menu kopi.
-*/
 
 #include "order_coffee.h"
 #include <Wire.h>
@@ -115,15 +110,14 @@ void startBlinkingLEDs() {
 
 // --- Implementasi Fungsi stopBlinkingLEDs ---
 void stopBlinkingLEDs() {
-    // Hanya matikan LED jika mereka saat ini menyala (LOW) atau sedang blinking
     if (pcf2.digitalRead(FP_LED1_PIN) == LOW || pcf2.digitalRead(FP_LED2_PIN) == LOW || !blinkingStoppedMessagePrinted) {
-        pcf2.digitalWrite(FP_LED1_PIN, HIGH); // Matikan LED (HIGH untuk common anode)
+        pcf2.digitalWrite(FP_LED1_PIN, HIGH);
         pcf2.digitalWrite(FP_LED2_PIN, HIGH);
-        ledState = HIGH; // Set status ke mati
+        ledState = HIGH;
 
         if (!blinkingStoppedMessagePrinted) {
             Serial.println("[OrderCoffee] LEDs berhenti blinking.");
-            blinkingStoppedMessagePrinted = true; // Tandai bahwa pesan sudah dicetak
+            blinkingStoppedMessagePrinted = true;
         }
     }
 }
@@ -132,22 +126,21 @@ void stopBlinkingLEDs() {
 void updateBlinkingLEDs(unsigned long currentMillis) {
     if (currentMillis - lastBlinkMillis >= BLINK_INTERVAL) {
       lastBlinkMillis = currentMillis;
-      ledState = !ledState; // Toggle LED state
+      ledState = !ledState;
       pcf2.digitalWrite(FP_LED1_PIN, ledState);
       pcf2.digitalWrite(FP_LED2_PIN, ledState);
-      blinkingStoppedMessagePrinted = false; // Reset agar pesan bisa dicetak lagi jika blinking berhenti
+      blinkingStoppedMessagePrinted = false;
     }
 }
 
 // --- Implementasi Fungsi selectCoffeeMenu ---
 void selectCoffeeMenu(int menuId) {
-    if (!menuConfirmed) { // Hanya bisa memilih menu jika belum dikonfirmasi
+    if (!menuConfirmed) {
         selectedMenu = menuId;
         menuActive = true;
-        startBlinkingLEDs(); // Mulai blinking LED saat menu dipilih
-
+        startBlinkingLEDs();
         Serial.print("[OrderCoffee] Menu: ");
-        lcd.clear(); // Hapus tampilan sebelumnya
+        lcd.clear();
         lcd.setCursor(0, 0);
 
         switch (menuId) {
@@ -167,16 +160,16 @@ void selectCoffeeMenu(int menuId) {
                 Serial.println("Pilihan menu tidak valid.");
                 selectedMenu = 0;
                 menuActive = false;
-                stopBlinkingLEDs(); // Berhenti blinking jika pilihan tidak valid
+                stopBlinkingLEDs();
                 lcd.print("Pilihan tidak valid!");
                 break;
         }
 
-        if (selectedMenu != 0) { // Jika pilihan valid, tampilkan "> Seduh kopi"
+        if (selectedMenu != 0) {
             lcd.setCursor(0, 1);
             lcd.print("> Seduh kopi        ");
-            lcd.setCursor(0, 2); lcd.print("                    "); // Bersihkan baris 2
-            lcd.setCursor(0, 3); lcd.print("                    "); // Bersihkan baris 3
+            lcd.setCursor(0, 2); lcd.print("                    ");
+            lcd.setCursor(0, 3); lcd.print("                    ");
         }
     } else {
         Serial.println("[OrderCoffee] Sistem sedang dalam proses menu atau sudah dikonfirmasi. Tidak dapat memilih menu baru.");
@@ -188,22 +181,20 @@ void handleOrderCoffee() {
   unsigned long currentMillis = millis();
 
   // --- [1] Logika Reset Sistem Setelah Proses Menu Selesai ---
-  // Menu dikonfirmasi dan sudah 5 detik berlalu sejak proses dimulai
   if (menuConfirmed && (currentMillis - menuProcessStartTime >= 5000)) {
     Serial.println("[OrderCoffee] Proses menu selesai (5 detik). Mereset sistem ke mode idle.");
 
     selectedMenu = 0;
     menuConfirmed = false;
     menuActive = false;
-    rfidMenuMode = false; // Reset mode RFID
-    rfidErrorActive = false; // Pastikan error RFID juga direset
+    rfidMenuMode = false;
+    rfidErrorActive = false;
 
-    stopBlinkingLEDs();   // Berhenti blinking setelah proses selesai
-    displayIdleMenu();    // Kembali ke tampilan idle setelah proses selesai
+    stopBlinkingLEDs();
+    displayIdleMenu();
   }
 
   // --- [2] Update Status LED Blinking ---
-  // LED hanya blinking saat menu aktif tapi belum dikonfirmasi
   if (menuActive && !menuConfirmed) {
       updateBlinkingLEDs(currentMillis);
   } else {
@@ -216,40 +207,7 @@ void handleOrderCoffee() {
   bool pb3Pressed = readPushButton(FP_PB3_PIN, 2); // Tombol menu 3
   bool pb4Pressed = readPushButton(FP_PB4_PIN, 3); // Tombol konfirmasi
 
-  // --- [4] Logika Deteksi Kartu RFID dan Masuk Mode Pemilihan Menu ---
-  // Masuk mode pemilihan kopi HANYA jika kartu RFID terdeteksi DAN sistem benar-benar idle
-  // (Tidak ada menu aktif, belum dikonfirmasi, bukan mode menu RFID yang sedang berlangsung,
-  // dan tidak ada error RFID aktif)
-  if (!currentRfidUid.isEmpty() && !menuActive && !menuConfirmed && !rfidMenuMode && !rfidErrorActive) {
-      // Serial.println("[OrderCoffee] Kartu RFID terdeteksi: " + currentRfidUid + ". Memproses kartu...");
-
-      // processRfidMenuSelection akan mengecek apakah kartu terdaftar
-      // Fungsi ini yang akan mengeset rfidMenuMode dan menuActive jika kartu terdaftar
-      processRfidMenuSelection(currentRfidUid);
-
-      // Jika processRfidMenuSelection berhasil mengaktifkan mode menu RFID
-      if (rfidMenuMode) {
-        Serial.println("[OrderCoffee] Mode pemilihan menu RFID diaktifkan. Tampilkan pilihan kopi di LCD.");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Pilih Kopi:");
-        lcd.setCursor(0, 1);
-        lcd.print("1. Torabika");
-        lcd.setCursor(0, 2);
-        lcd.print("2. Good Day");
-        lcd.setCursor(0, 3);
-        lcd.print("3. ABC Susu");
-        startBlinkingLEDs(); // Mulai blinking LED saat masuk mode pemilihan
-      } else {
-        // Jika kartu terdeteksi tapi tidak valid/terdaftar
-        // Serial.println("[OrderCoffee] Kartu RFID terdeteksi, tapi tidak terdaftar atau tidak valid.");
-        // Logika untuk menampilkan pesan error di LCD untuk durasi tertentu ada di rfid_card_reader.cpp
-      }
-      // currentRfidUid tidak direset di sini; akan direset oleh rfid_card_reader.cpp setelah durasi tampil.
-  }
-
   // --- [5] Logika Pemilihan Menu oleh Pengguna (Tombol 1, 2, 3) ---
-  // Hanya jika sudah dalam mode pemilihan menu (menuActive) dan belum dikonfirmasi
   if (menuActive && !menuConfirmed) {
       if (pb1Pressed) {
           selectCoffeeMenu(1);
@@ -264,7 +222,6 @@ void handleOrderCoffee() {
   }
 
   // --- [6] Logika Konfirmasi Menu (Tombol 4) ---
-  // Konfirmasi hanya jika menu aktif, belum dikonfirmasi, dan ada menu yang sudah dipilih
   if (menuActive && !menuConfirmed && pb4Pressed && selectedMenu != 0) {
     menuConfirmed = true;
     menuProcessStartTime = currentMillis;
@@ -335,6 +292,9 @@ void handleOrderCoffee() {
     motor_pump_seduh_kopi_stop();
     Serial.println("[MotorControl] seduh kopi selesai.");
 
+    displayIdleMenu();
+    stopBlinkingLEDs();
+
     // Setelah proses selesai, tampilkan "Kopi Siap!" di LCD
     Serial.print("[OrderCoffee] Kopi ");
     switch (selectedMenu) {
@@ -357,8 +317,6 @@ void handleOrderCoffee() {
   }
 
   // --- [7] Kontrol Tampilan Idle Menu ---
-  // displayIdleMenu hanya akan dipanggil jika sistem benar-benar idle
-  // dan tidak ada pesan error RFID yang sedang aktif
   static bool idleMenuDisplayed = false; // Flag untuk mencegah refresh berlebihan
 
   if (!menuActive && !menuConfirmed && !rfidErrorActive && !idleMenuDisplayed) {
@@ -369,7 +327,7 @@ void handleOrderCoffee() {
       if (idleMenuDisplayed) { // Hanya log jika flag direset
           Serial.println("[OrderCoffee] Aktivitas terdeteksi. Menyembunyikan Idle Menu.");
       }
-      idleMenuDisplayed = false; // Reset flag saat ada aktivitas
+      idleMenuDisplayed = false;
   }
 }
 
